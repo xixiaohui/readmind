@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_runs" ADD COLUMN "updated_at" timestamp DEFAULT now() NOT NULL;
