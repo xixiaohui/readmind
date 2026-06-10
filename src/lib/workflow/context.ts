@@ -25,6 +25,7 @@
 // runs identically to production.
 // ---------------------------------------------------------------------------
 
+import { z } from "zod/v4";
 import type { BookAnalysisStateType } from "./state";
 import { saveCheckpoint, markWorkflowFailed } from "./checkpoint";
 
@@ -39,8 +40,8 @@ export interface LLMClient {
   /** Send a chat completion request. Returns the response text. */
   chat(messages: LLMMessage[]): Promise<string>;
 
-  /** Send a chat completion request with structured JSON output. */
-  chatJSON<T>(messages: LLMMessage[], schema: Record<string, unknown>): Promise<T>;
+  /** Send a chat completion request with structured JSON output. Validates against the given Zod schema. */
+  chatJSON<T>(messages: LLMMessage[], schema: z.ZodType<T>): Promise<T>;
 
   /** Generate embeddings for a list of texts. */
   embed(texts: string[]): Promise<number[][]>;

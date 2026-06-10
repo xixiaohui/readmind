@@ -6,17 +6,33 @@
 // extracts supporting keywords.
 // ---------------------------------------------------------------------------
 
+import { z } from "zod/v4";
 import type { BookAnalysisStateType } from "../state";
 import type { ThemeResult } from "@/lib/types";
 import { runAgentOverChunks } from "@/lib/agents/base";
 
+/** LLM output shape — matches the prompt exactly */
+const themeOutputSchema = z.object({
+  themes: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      weight: z.number(),
+      keywords: z.array(z.string()),
+    })
+  ),
+});
+
+type ThemeOutput = z.infer<typeof themeOutputSchema>;
+
 export async function themeAnalyzer(
   state: BookAnalysisStateType
 ): Promise<Partial<BookAnalysisStateType>> {
-  const results = await runAgentOverChunks<ThemeResult["themes"][number]>(
+  const results = await runAgentOverChunks<ThemeOutput>(
     state,
     {
       name: "ThemeAgent",
+      outputSchema: themeOutputSchema,
       systemPrompt: `You are a literary theme analysis expert. Your role is to identify and analyze themes in text passages.
 
 For each passage, identify:
@@ -51,7 +67,7 @@ Rules:
     .filter((r) => r.success && r.data)
     .map((r) => ({
       chunkIndex: r.chunkIndex,
-      themes: r.data ? (Array.isArray(r.data) ? r.data : [r.data]) : [],
+      themes: r.data!.themes ?? [],
     }));
 
   return {

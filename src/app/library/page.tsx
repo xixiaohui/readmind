@@ -22,7 +22,8 @@ interface BookItem {
 const statusIcon = (status: string | undefined) => {
   switch (status) {
     case "completed": return <CheckCircle className="h-4 w-4 text-emerald-400" />;
-    case "running": return <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />;
+    case "running":
+    case "pending": return <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />;
     case "failed": return <AlertCircle className="h-4 w-4 text-red-400" />;
     default: return <Clock className="h-4 w-4 text-muted-foreground" />;
   }
@@ -103,7 +104,7 @@ export default function LibraryPage() {
                     {statusIcon(book.workflow?.status)}
                   </div>
 
-                  {book.workflow?.status === "running" ? (
+                  {book.workflow?.status === "running" || book.workflow?.status === "pending" ? (
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Analyzing…</span>
@@ -120,6 +121,8 @@ export default function LibraryPage() {
                     </div>
                   ) : book.status === "uploaded" ? (
                     <Badge variant="outline" className="text-xs w-fit">Ready to analyze</Badge>
+                  ) : book.status === "analyzing" ? (
+                    <Badge variant="outline" className="text-xs w-fit border-blue-400/30 text-blue-400">Analyzing…</Badge>
                   ) : book.status === "failed" ? (
                     <Badge variant="destructive" className="text-xs">Failed</Badge>
                   ) : (

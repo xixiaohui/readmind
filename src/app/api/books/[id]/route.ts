@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { db } from "@/lib/db/connection";
-import { books, bookAnalysis, workflowRuns, quotes, themes } from "@/lib/db/schema";
+import { books, bookAnalysis, workflowRuns, workflowSteps, quotes, themes } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { ok, notFound } from "@/lib/api/responses";
 import { withErrorHandler } from "@/lib/api/errors";
@@ -54,6 +54,7 @@ export const GET = withErrorHandler(async (
       status: workflowRuns.status,
       progress: workflowRuns.progress,
       currentNode: workflowRuns.currentNode,
+      errors: workflowRuns.errors,
       startedAt: workflowRuns.startedAt,
       completedAt: workflowRuns.completedAt,
     })
@@ -61,6 +62,25 @@ export const GET = withErrorHandler(async (
     .where(eq(workflowRuns.bookId, bookId))
     .orderBy(desc(workflowRuns.createdAt))
     .limit(1);
+
+  // Get step history for the latest workflow (for progress display)
+  let stepHistory: { nodeName: string; status: string; error: string | null }[] = [];
+  if (latestWorkflow) {
+    const steps = await db
+      .select({
+        nodeName: workflowSteps.nodeName,
+        status: workflowSteps.status,
+        error: workflowSteps.error,
+      })
+      .from(workflowSteps)
+      .where(eq(workflowSteps.workflowId, latestWorkflow.id))
+      .orderBy(workflowSteps.createdAt);
+    stepHistory = steps.map((s) => ({
+      nodeName: s.nodeName,
+      status: s.status,
+      error: s.error,
+    }));
+  }
 
   // Get quotes and themes if they exist
   const bookQuotes = await db
@@ -96,7 +116,9 @@ export const GET = withErrorHandler(async (
       result: a.result,
       createdAt: a.createdAt,
     })),
-    latestWorkflow: latestWorkflow ?? null,
+    latestWorkflow: latestWorkflow
+      ? { ...latestWorkflow, steps: stepHistory }
+      : null,
     quotes: bookQuotes,
     themes: bookThemes,
   });

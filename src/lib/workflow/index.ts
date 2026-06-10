@@ -57,5 +57,9 @@ export type {
   WorkflowContextOptions,
 } from "./context";
 
+// Trigger (fire-and-forget)
+export { triggerWorkflow } from "./trigger";
+export type { TriggerWorkflowParams, TriggerWorkflowResult } from "./trigger";
+
 // Nodes
 export * from "./nodes";

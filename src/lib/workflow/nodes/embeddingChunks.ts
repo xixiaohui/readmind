@@ -43,35 +43,54 @@ export async function embeddingChunks(
   // Extract text content from each chunk
   const texts = chunks.map((c) => c.content);
 
-  // Generate embeddings in batches
-  const vectors = await llmClient.embed(texts);
+  // Generate embeddings in batches.
+  // Gracefully skip if the provider doesn't support embeddings (e.g. DeepSeek).
+  let vectors: number[][] = [];
+  try {
+    vectors = await llmClient.embed(texts);
+  } catch (err) {
+    const isUnsupported =
+      err instanceof Error &&
+      (err.message.includes("404") ||
+       err.message.includes("not found") ||
+       err.message.includes("not supported"));
+    if (isUnsupported) {
+      console.warn(
+        "[embeddingChunks] Embedding API not available — skipping vector generation. " +
+        "Semantic search will be unavailable."
+      );
+    } else {
+      throw err; // re-throw non-404 errors
+    }
+  }
 
-  // Attach embeddings to chunks (in-memory)
-  const chunksWithEmbeddings = chunks.map((chunk, i) => ({
-    ...chunk,
-    embedding: vectors[i],
-  }));
+  // Attach embeddings to chunks (in-memory) if we got them
+  const chunksWithEmbeddings =
+    vectors.length > 0
+      ? chunks.map((chunk, i) => ({
+          ...chunk,
+          embedding: vectors[i],
+        }))
+      : chunks;
 
   // Persist embeddings to PostgreSQL
-  // Note: chunks don't have DB IDs at this point (they're created in-memory).
-  // Embeddings are stored in state now and persisted in saveAnalysis.
-  // For real production: insert chunks into book_chunks table first,
-  // then use the returned IDs to link embeddings.
-  const validRows = chunksWithEmbeddings
-    .map((_chunk, i) => {
-      const chunkId = (state.chunks[i] as { id?: string } | undefined)?.id;
-      if (!chunkId) return null;
-      return {
-        bookId,
-        chunkId,
-        embedding: vectors[i]!,
-        model: "text-embedding-3-small",
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
+  if (vectors.length > 0) {
+    const validRows = chunksWithEmbeddings
+      .map((_chunk, i) => {
+        const chunkId = (state.chunks[i] as { id?: string } | undefined)?.id;
+        if (!chunkId) return null;
+        return {
+          bookId,
+          chunkId,
+          embedding: vectors[i]!,
+          model: "text-embedding-3-small",
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
 
-  if (validRows.length > 0) {
-    await db.insert(embeddings).values(validRows);
+    if (validRows.length > 0) {
+      await db.insert(embeddings).values(validRows);
+    }
   }
 
   return {

@@ -25,6 +25,7 @@
 // ---------------------------------------------------------------------------
 
 import { llmClient } from "@/lib/llm/client";
+import { z } from "zod/v4";
 import type { LLMMessage } from "@/lib/workflow/context";
 import type { BookAnalysisStateType } from "@/lib/workflow/state";
 
@@ -32,13 +33,15 @@ import type { BookAnalysisStateType } from "@/lib/workflow/state";
 // Agent Configuration
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface AgentConfig {
+export interface AgentConfig<TItem> {
   /** Human-readable name for logging */
   name: string;
   /** System prompt that defines the agent's expertise and output format */
   systemPrompt: string;
   /** Builds the user message for a given chunk */
   buildUserMessage: (chunkContent: string, chunkIndex: number, totalChunks: number) => string;
+  /** Zod schema that validates the LLM's JSON output shape */
+  outputSchema: z.ZodType<TItem>;
   /** Max retries per chunk (default 2) */
   maxRetries?: number;
 }
@@ -67,9 +70,9 @@ export interface AgentResult<TItem> {
  */
 export async function runAgentOverChunks<TItem>(
   state: BookAnalysisStateType,
-  config: AgentConfig
+  config: AgentConfig<TItem>
 ): Promise<AgentResult<TItem>[]> {
-  const { name, systemPrompt, buildUserMessage, maxRetries = 2 } = config;
+  const { name, systemPrompt, buildUserMessage, outputSchema, maxRetries = 2 } = config;
   const results: AgentResult<TItem>[] = [];
 
   console.log(`[Agent:${name}] Processing ${state.chunks.length} chunks...`);
@@ -91,7 +94,7 @@ export async function runAgentOverChunks<TItem>(
           },
         ];
 
-        const data = await llmClient.chatJSON<TItem>(messages, {});
+        const data = await llmClient.chatJSON<TItem>(messages, outputSchema);
 
         results.push({ chunkIndex: i, success: true, data });
         success = true;

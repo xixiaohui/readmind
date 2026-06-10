@@ -1,13 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Upload as UploadIcon, FileText, Loader2 } from "lucide-react";
+import Link from "next/link";
+import {
+  Upload as UploadIcon, FileText, Loader2, ChevronRight,
+  CheckCircle, Clock, AlertCircle, History,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/AuthProvider";
+
+interface BookItem {
+  id: string;
+  title: string;
+  author: string | null;
+  status: string;
+  chunkCount: number;
+  createdAt: string;
+  updatedAt: string;
+  workflow: { status: string; progress: number } | null;
+}
+
+const statusBadge = (book: BookItem) => {
+  const ws = book.workflow?.status;
+  if (ws === "completed" || book.status === "completed") {
+    return <Badge className="bg-emerald-400/10 text-emerald-400 text-xs"><CheckCircle className="h-3 w-3 mr-1" />Analyzed</Badge>;
+  }
+  if (ws === "running" || ws === "pending") {
+    return <Badge className="bg-blue-400/10 text-blue-400 text-xs"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing</Badge>;
+  }
+  if (ws === "failed" || book.status === "failed") {
+    return <Badge className="bg-red-400/10 text-red-400 text-xs"><AlertCircle className="h-3 w-3 mr-1" />Failed</Badge>;
+  }
+  return <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+};
 
 export default function UploadPage() {
   const router = useRouter();
@@ -17,6 +46,17 @@ export default function UploadPage() {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [books, setBooks] = useState<BookItem[]>([]);
+  const [loadingBooks, setLoadingBooks] = useState(true);
+
+  useEffect(() => {
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    fetch("/api/library", { headers })
+      .then((r) => r.json())
+      .then((d) => setBooks(d.data?.books ?? []))
+      .finally(() => setLoadingBooks(false));
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +170,38 @@ export default function UploadPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* ── Previously Imported ─────────────────────────────────────────── */}
+      {!loadingBooks && books.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-3">
+            <History className="h-4 w-4" />
+            Previously Imported
+          </h2>
+          <div className="space-y-2">
+            {books.map((book) => (
+              <Link key={book.id} href={`/book/${book.id}`}>
+                <Card className="hover:border-primary/50 transition-colors cursor-pointer group">
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                        {book.title}
+                      </p>
+                      {book.author && (
+                        <p className="text-xs text-muted-foreground truncate">{book.author}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {statusBadge(book)}
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

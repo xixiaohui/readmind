@@ -5,21 +5,25 @@
 // Outputs: a concise summary, key points, and reading difficulty level.
 // ---------------------------------------------------------------------------
 
+import { z } from "zod/v4";
 import type { BookAnalysisStateType } from "../state";
 import type { SummaryResult } from "@/lib/types";
 import { runAgentOverChunks } from "@/lib/agents/base";
 
-interface SummaryOutput {
-  summary: string;
-  keyPoints: string[];
-  readingLevel: "beginner" | "intermediate" | "advanced";
-}
+const summaryOutputSchema = z.object({
+  summary: z.string(),
+  keyPoints: z.array(z.string()),
+  readingLevel: z.enum(["beginner", "intermediate", "advanced"]),
+});
+
+type SummaryOutput = z.infer<typeof summaryOutputSchema>;
 
 export async function summaryAnalyzer(
   state: BookAnalysisStateType
 ): Promise<Partial<BookAnalysisStateType>> {
   const results = await runAgentOverChunks<SummaryOutput>(state, {
     name: "SummaryAgent",
+    outputSchema: summaryOutputSchema,
     systemPrompt: `You are a structured summary expert. Your role is to create clear, accurate summaries of text passages.
 
 For each passage, provide:

@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------------
 
 import OpenAI from "openai";
+import { z } from "zod/v4";
 import type { LLMClient, LLMMessage } from "@/lib/workflow/context";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,7 +52,9 @@ export const llmClient: LLMClient = {
         content: m.content,
       })),
       temperature: 0.3, // lower = more consistent for analysis
-      max_tokens: 2048,
+      max_tokens: 8192,
+      // @ts-expect-error — DeepSeek-specific param, not in OpenAI SDK types
+      extra_body: { thinking: { type: "disabled" } },
     });
 
     const content = response.choices[0]?.message?.content;
@@ -65,7 +68,7 @@ export const llmClient: LLMClient = {
 
   async chatJSON<T>(
     messages: LLMMessage[],
-    _schema: Record<string, unknown>
+    schema: z.ZodType<T>
   ): Promise<T> {
     // Add JSON instruction to system message
     const systemMsg = messages.find((m) => m.role === "system");
@@ -81,50 +84,78 @@ export const llmClient: LLMClient = {
           ...messages,
         ];
 
-    const response = await openai.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages: augmentedMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      temperature: 0.1, // very low for structured output
-      max_tokens: 4096,
-      response_format: { type: "json_object" },
-    });
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("LLM returned empty JSON response");
-    }
-
-    try {
-      return JSON.parse(content) as T;
-    } catch (parseError) {
-      // Retry once without JSON format constraint
-      console.warn("[LLM] JSON parse failed, retrying without json_object format");
-      const retryResponse = await openai.chat.completions.create({
-        model: DEFAULT_MODEL,
-        messages: [
-          ...augmentedMessages.map((m) => ({
+    const doCall = async (retryHint?: string): Promise<T> => {
+      const msgs = retryHint
+        ? [
+            ...augmentedMessages.map((m) => ({
+              role: m.role as "system" | "user" | "assistant",
+              content: m.content,
+            })),
+            { role: "user" as const, content: retryHint },
+          ]
+        : augmentedMessages.map((m) => ({
             role: m.role as "system" | "user" | "assistant",
             content: m.content,
-          })),
-          {
-            role: "user",
-            content:
-              "Your previous response was not valid JSON. Please try again. Output ONLY the JSON object, no other text.",
-          },
-        ],
-        temperature: 0,
-        max_tokens: 4096,
+          }));
+
+      const response = await openai.chat.completions.create({
+        model: DEFAULT_MODEL,
+        messages: msgs,
+        temperature: retryHint ? 0 : 0.1,
+        max_tokens: 16384,
+        response_format: retryHint ? undefined : { type: "json_object" },
+        // @ts-expect-error — DeepSeek-specific param, not in OpenAI SDK types
+        extra_body: { thinking: { type: "disabled" } },
       });
 
-      const retryContent = retryResponse.choices[0]?.message?.content;
-      if (!retryContent) {
-        throw new Error("LLM retry returned empty response");
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("LLM returned empty JSON response");
       }
-      return JSON.parse(retryContent) as T;
-    }
+
+      // Parse JSON
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        if (!retryHint) {
+          throw new Error(
+            "LLM returned invalid JSON (not parseable). " +
+            "First 200 chars: " + content.slice(0, 200)
+          );
+        }
+        throw new Error(
+          "LLM retry also returned invalid JSON. " +
+          "First 200 chars: " + content.slice(0, 200)
+        );
+      }
+
+      // Validate shape with Zod — catches prompt/type mismatches early
+      const result = schema.safeParse(parsed);
+      if (!result.success) {
+        const issues = result.error.issues
+          .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("\n");
+
+        if (!retryHint) {
+          // Retry once with the schema issues as feedback
+          console.warn("[LLM] JSON shape mismatch, retrying with schema feedback");
+          return doCall(
+            "Your response did not match the required format:\n" +
+            issues +
+            "\n\nPlease fix your JSON and try again. Output ONLY the corrected JSON."
+          );
+        }
+
+        throw new Error(
+          "LLM JSON shape mismatch after retry:\n" + issues
+        );
+      }
+
+      return result.data;
+    };
+
+    return doCall();
   },
 
   // ── Embeddings ──────────────────────────────────────────────────────────

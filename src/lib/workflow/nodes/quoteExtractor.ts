@@ -5,24 +5,30 @@
 // Each quote is categorized and scored for quality.
 // ---------------------------------------------------------------------------
 
+import { z } from "zod/v4";
 import type { BookAnalysisStateType } from "../state";
 import type { QuoteResult } from "@/lib/types";
 import { runAgentOverChunks } from "@/lib/agents/base";
 
-interface QuoteOutput {
-  quotes: {
-    text: string;
-    context: string;
-    category: "insight" | "wisdom" | "emotional" | "philosophical" | "practical";
-    score: number;
-  }[];
-}
+const quoteOutputSchema = z.object({
+  quotes: z.array(
+    z.object({
+      text: z.string(),
+      context: z.string(),
+      category: z.enum(["insight", "wisdom", "emotional", "philosophical", "practical"]),
+      score: z.number(),
+    })
+  ),
+});
+
+type QuoteOutput = z.infer<typeof quoteOutputSchema>;
 
 export async function quoteExtractor(
   state: BookAnalysisStateType
 ): Promise<Partial<BookAnalysisStateType>> {
   const results = await runAgentOverChunks<QuoteOutput>(state, {
     name: "QuoteAgent",
+    outputSchema: quoteOutputSchema,
     systemPrompt: `You are a quote curation expert. Your role is to identify and extract the most meaningful, insightful, or powerful quotes from text passages.
 
 For each passage, extract 1-5 quotes that are:

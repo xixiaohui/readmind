@@ -8,23 +8,30 @@
 // Uses theme results to contextualize the philosophical analysis.
 // ---------------------------------------------------------------------------
 
+import { z } from "zod/v4";
 import type { BookAnalysisStateType } from "../state";
 import type { PhilosophyResult } from "@/lib/types";
 import { runAgentOverChunks } from "@/lib/agents/base";
 
-interface PhilosophyOutput {
-  frameworks: {
-    name: string;
-    description: string;
-    confidence: number;
-    relatedThemes: string[];
-  }[];
-  argumentStructure: {
-    claim: string;
-    evidence: string[];
-    reasoning: string;
-  }[];
-}
+const philosophyOutputSchema = z.object({
+  frameworks: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      confidence: z.number(),
+      relatedThemes: z.array(z.string()),
+    })
+  ),
+  argumentStructure: z.array(
+    z.object({
+      claim: z.string(),
+      evidence: z.array(z.string()),
+      reasoning: z.string(),
+    })
+  ),
+});
+
+type PhilosophyOutput = z.infer<typeof philosophyOutputSchema>;
 
 export async function philosophyAnalyzer(
   state: BookAnalysisStateType
@@ -41,6 +48,7 @@ export async function philosophyAnalyzer(
 
   const results = await runAgentOverChunks<PhilosophyOutput>(state, {
     name: "PhilosophyAgent",
+    outputSchema: philosophyOutputSchema,
     systemPrompt: `You are a philosophical analysis expert. Your role is to identify philosophical frameworks, argument structures, and reasoning patterns in text.
 
 For each passage, identify:

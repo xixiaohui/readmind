@@ -33,6 +33,7 @@
 // ---------------------------------------------------------------------------
 
 import { llmClient } from "@/lib/llm/client";
+import { z } from "zod/v4";
 import type { LLMMessage } from "@/lib/workflow/context";
 import type {
   ThemeResult,
@@ -187,12 +188,14 @@ Rules:
     },
   ];
 
+  const themeMergeSchema = z.object({
+    name: z.string(),
+    description: z.string(),
+    mergedKeywords: z.array(z.string()),
+  });
+
   try {
-    const result = await llmClient.chatJSON<{
-      name: string;
-      description: string;
-      mergedKeywords: string[];
-    }>(messages, {});
+    const result = await llmClient.chatJSON(messages, themeMergeSchema);
 
     return {
       name: result.name,

@@ -5,17 +5,22 @@ import Link from "next/link";
 import {
   BookOpen, Loader2, Brain, Quote, Lightbulb, Heart,
   Sparkles, Hash, BarChart3, ArrowLeft, ExternalLink, AlertCircle,
+  Play, RotateCcw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 
 interface BookData {
   book: { id: string; title: string; author: string | null; status: string; chunkCount: number; createdAt: string };
   analyses: { id: string; type: string; result: unknown }[];
-  latestWorkflow: { id: string; status: string; progress: number; currentNode: string } | null;
+  latestWorkflow: {
+    id: string; status: string; progress: number; currentNode: string;
+    errors?: { node: string; message: string; timestamp: string }[];
+    steps?: { nodeName: string; status: string; error: string | null }[];
+  } | null;
   quotes: { id: string; text: string; context: string; category: string; score: number }[];
   themes: { id: string; name: string; description: string; weight: number }[];
 }
@@ -24,22 +29,50 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const [data, setData] = useState<BookData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [triggering, setTriggering] = useState(false);
 
-  useEffect(() => {
+  const fetchBook = () => {
     fetch(`/api/books/${id}`)
       .then((r) => r.json())
       .then((d) => setData(d.data))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchBook();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Auto-refresh if workflow is running
+  // Auto-refresh if workflow is running or pending
   useEffect(() => {
-    if (!data?.latestWorkflow || data.latestWorkflow.status !== "running") return;
-    const interval = setInterval(() => {
-      fetch(`/api/books/${id}`).then((r) => r.json()).then((d) => setData(d.data));
-    }, 3000);
+    if (!data?.latestWorkflow) return;
+    if (data.latestWorkflow.status !== "running" && data.latestWorkflow.status !== "pending") return;
+    const interval = setInterval(fetchBook, 3000);
     return () => clearInterval(interval);
   }, [data?.latestWorkflow?.status, id]);
+
+  const startAnalysis = async () => {
+    setTriggering(true);
+    try {
+      const token = localStorage.getItem("readmind_token");
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch("/api/books/analyze", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ bookId: id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Analysis start failed:", res.status, err);
+      }
+    } catch (err) {
+      console.error("Analysis start network error:", err);
+    } finally {
+      setTriggering(false);
+      fetchBook();
+    }
+  };
 
   if (loading) {
     return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -59,6 +92,31 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
 
   const categoryColors: Record<string, string> = { insight: "bg-blue-400/10 text-blue-400", wisdom: "bg-amber-400/10 text-amber-400", emotional: "bg-rose-400/10 text-rose-400", philosophical: "bg-violet-400/10 text-violet-400", practical: "bg-emerald-400/10 text-emerald-400" };
 
+const pipelineNodes = [
+  "init", "loadBook", "splitBook", "embeddingChunks",
+  "themeAnalyzer", "summaryAnalyzer", "quoteExtractor",
+  "philosophyAnalyzer", "emotionAnalyzer",
+  "aggregateResults", "saveAnalysis",
+];
+
+const nodeLabel: Record<string, string> = {
+  init: "Init", loadBook: "Load", splitBook: "Split",
+  embeddingChunks: "Embed", themeAnalyzer: "Themes",
+  summaryAnalyzer: "Summary", quoteExtractor: "Quotes",
+  philosophyAnalyzer: "Philosophy", emotionAnalyzer: "Emotion",
+  aggregateResults: "Aggregate", saveAnalysis: "Save",
+  END: "Done", ERROR: "Error",
+};
+
+const nodeDesc: Record<string, string> = {
+  init: "Initializing", loadBook: "Loading book text",
+  splitBook: "Splitting into chunks", embeddingChunks: "Generating embeddings",
+  themeAnalyzer: "Analyzing themes", summaryAnalyzer: "Writing summaries",
+  quoteExtractor: "Extracting key quotes", philosophyAnalyzer: "Identifying philosophy",
+  emotionAnalyzer: "Analyzing emotions", aggregateResults: "Aggregating results",
+  saveAnalysis: "Saving to database",
+};
+
   return (
     <div>
       {/* Header */}
@@ -71,7 +129,7 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
           {book.author && <p className="text-muted-foreground">by {book.author}</p>}
         </div>
         <div className="flex items-center gap-2">
-          {latestWorkflow?.status === "running" ? (
+          {latestWorkflow?.status === "running" || latestWorkflow?.status === "pending" ? (
             <Badge className="bg-blue-400/10 text-blue-400"><Loader2 className="h-3 w-3 animate-spin mr-1" /> Analyzing</Badge>
           ) : latestWorkflow?.status === "completed" ? (
             <Badge className="bg-emerald-400/10 text-emerald-400"><Sparkles className="h-3 w-3 mr-1" /> Complete</Badge>
@@ -81,27 +139,102 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* Running progress bar */}
-      {latestWorkflow?.status === "running" && (
-        <Card className="mb-6 border-blue-400/20 bg-blue-400/5">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2 text-sm">
-              <span className="flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> AI is reading and analyzing…</span>
-              <span>{Math.round(latestWorkflow.progress * 100)}%</span>
-            </div>
-            <Progress value={latestWorkflow.progress * 100} className="h-2" />
-            <div className="mt-2 flex justify-end">
-              <Link href={`/workflow/${latestWorkflow.id}`} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                <ExternalLink className="h-3 w-3" /> Live workflow view
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Running progress — live node timeline */}
+      {(latestWorkflow?.status === "running" || latestWorkflow?.status === "pending") && (() => {
+        // Build a set of completed/failed/running nodes from step history
+        const steps = latestWorkflow.steps ?? [];
+        const stepMap = new Map<string, { status: string; error?: string | null }>();
+        for (const s of steps) {
+          if (s.status === "completed" || s.status === "failed") {
+            stepMap.set(s.nodeName, { status: s.status, error: s.error });
+          } else if (s.status === "running" && !stepMap.has(s.nodeName)) {
+            stepMap.set(s.nodeName, { status: "running" });
+          }
+        }
+
+        const currentNode = latestWorkflow.currentNode || "";
+
+        return (
+          <Card className="mb-6 border-blue-400/20 bg-blue-400/5">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3 text-sm">
+                <span className="flex items-center gap-2 font-medium">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
+                  AI Analysis Pipeline
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {Math.round(latestWorkflow.progress * 100)}%
+                </span>
+              </div>
+
+              {/* Node timeline */}
+              <div className="space-y-1">
+                {pipelineNodes.map((node) => {
+                  const step = stepMap.get(node);
+                  const isCurrent = currentNode === node;
+
+                  let icon: React.ReactNode;
+                  let rowClass = "text-muted-foreground/40";
+
+                  if (step?.status === "completed") {
+                    icon = <span className="text-emerald-400 text-xs font-bold w-5 text-center">✓</span>;
+                    rowClass = "text-emerald-400/80";
+                  } else if (step?.status === "failed") {
+                    icon = <span className="text-red-400 text-xs font-bold w-5 text-center">✗</span>;
+                    rowClass = "text-red-400/80";
+                  } else if (isCurrent || step?.status === "running") {
+                    icon = <Loader2 className="h-3 w-3 animate-spin text-blue-400 mx-auto" />;
+                    rowClass = "text-blue-400";
+                  } else {
+                    icon = <span className="w-5 h-5 rounded-full border border-muted-foreground/20 inline-block" />;
+                  }
+
+                  return (
+                    <div key={node} className={`flex items-center gap-2.5 py-1 text-xs transition-colors ${rowClass}`}>
+                      <div className="w-5 flex justify-center shrink-0">{icon}</div>
+                      <span className="w-20 shrink-0 font-medium">{nodeLabel[node] ?? node}</span>
+                      <span className="text-muted-foreground/60 truncate hidden sm:inline">
+                        {step?.status === "failed" && step.error
+                          ? step.error.slice(0, 60)
+                          : isCurrent
+                          ? "running…"
+                          : step?.status === "completed"
+                          ? nodeDesc[node] ?? ""
+                          : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 flex justify-end">
+                <Link href={`/workflow/${latestWorkflow.id}`} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  <ExternalLink className="h-3 w-3" /> Full workflow view
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {latestWorkflow?.status === "failed" && (
-        <div className="mb-6 rounded-lg bg-red-400/10 px-4 py-3 text-sm text-red-400 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" /> Analysis failed. Please try re-uploading.
+        <div className="mb-6 rounded-lg bg-red-400/10 px-4 py-3 text-sm text-red-400 space-y-1">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertCircle className="h-4 w-4" /> Analysis failed
+          </div>
+          {latestWorkflow.errors && latestWorkflow.errors.length > 0 ? (
+            <div className="space-y-1 ml-6">
+              {latestWorkflow.errors.map((e, i) => (
+                <div key={i}>
+                  <span className="text-red-400/70">Node:</span> {e.node}
+                  <br />
+                  <span className="text-red-400/70">Error:</span> {e.message}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="ml-6 text-red-400/60">No error details available. The workflow may have crashed unexpectedly.</p>
+          )}
         </div>
       )}
 
@@ -229,18 +362,39 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
             </Card>
           </TabsContent>
         </Tabs>
+      ) : book.status === "failed" || latestWorkflow?.status === "failed" ? (
+        /* Failed — show retry button */
+        <Card className="border-dashed border-red-400/30">
+          <CardContent className="flex flex-col items-center py-16 gap-4">
+            <AlertCircle className="h-12 w-12 text-red-400/60" />
+            <p className="text-muted-foreground font-medium">Analysis failed</p>
+            <p className="text-sm text-muted-foreground/70 text-center max-w-sm">
+              Something went wrong during analysis. You can retry without re-uploading.
+            </p>
+            <Button onClick={startAnalysis} disabled={triggering} variant="outline" className="gap-2">
+              {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              Retry Analysis
+            </Button>
+          </CardContent>
+        </Card>
       ) : book.status === "uploaded" ? (
+        /* Uploaded but no workflow — show start button */
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center py-16 gap-4">
             <Lightbulb className="h-12 w-12 text-muted-foreground/40" />
             <p className="text-muted-foreground font-medium">Ready for analysis</p>
             <p className="text-sm text-muted-foreground/70">Start the AI workflow to unlock deep cognitive insights</p>
+            <Button onClick={startAnalysis} disabled={triggering} className="gap-2">
+              {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              Start Analysis
+            </Button>
           </CardContent>
         </Card>
       ) : (
+        /* Transitional state (analyzing/pending with no data yet) */
         <div className="text-center py-16 text-muted-foreground">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Waiting for analysis to begin…</p>
+          <p>Analyzing your book…</p>
         </div>
       )}
     </div>

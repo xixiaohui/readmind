@@ -2,16 +2,19 @@
 // POST /api/books/upload
 // ---------------------------------------------------------------------------
 // Upload a book for analysis. Accepts title, optional author, and full text.
-// Creates a book record in PostgreSQL with status "uploaded".
-// Returns the book ID for use with /api/books/analyze.
+// Creates a book record in PostgreSQL with status "analyzing".
+// Automatically launches the AI analysis workflow in the background.
+// Returns the book ID and workflow ID for client navigation.
 // ---------------------------------------------------------------------------
 
 import { db } from "@/lib/db/connection";
 import { books } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { UploadBookSchema } from "@/lib/api/validators";
 import { authenticate } from "@/lib/auth";
 import { created, badRequest, error } from "@/lib/api/responses";
 import { withErrorHandler } from "@/lib/api/errors";
+import { triggerWorkflow } from "@/lib/workflow";
 
 export const POST = withErrorHandler(async (request: Request) => {
   const user = await authenticate(request);
@@ -35,7 +38,7 @@ export const POST = withErrorHandler(async (request: Request) => {
       title,
       author: author ?? null,
       rawText: text,
-      status: "uploaded",
+      status: "analyzing",
     })
     .returning({
       id: books.id,
@@ -49,12 +52,35 @@ export const POST = withErrorHandler(async (request: Request) => {
     return badRequest("Failed to create book record");
   }
 
+  // Auto-trigger analysis workflow (fire-and-forget)
+  let workflowId: string | null = null;
+  try {
+    const result = await triggerWorkflow({
+      bookId: book.id,
+      userId: user.sub,
+      title: book.title,
+    });
+    workflowId = result.workflowId;
+  } catch (err) {
+    // Analysis trigger failed — book is still uploaded, user can retry
+    console.error(
+      `[Upload] Failed to trigger analysis for book ${book.id}:`,
+      err instanceof Error ? err.message : String(err)
+    );
+    // Reset book status so frontend shows "Start Analysis" button
+    await db
+      .update(books)
+      .set({ status: "uploaded" })
+      .where(eq(books.id, book.id));
+  }
+
   return created(
     {
       bookId: book.id,
       title: book.title,
       author: book.author,
       status: book.status,
+      workflowId,
       createdAt: book.createdAt,
     },
     { textLength: text.length }

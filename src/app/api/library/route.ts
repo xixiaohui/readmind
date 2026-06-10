@@ -7,7 +7,7 @@
 
 import { db } from "@/lib/db/connection";
 import { books, workflowRuns } from "@/lib/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth";
 import { PaginationSchema } from "@/lib/api/validators";
 import { ok, paginationMeta, error } from "@/lib/api/responses";
@@ -65,7 +65,7 @@ export const GET = withErrorHandler(async (request: Request) => {
         progress: workflowRuns.progress,
       })
       .from(workflowRuns)
-      .where(sql`${workflowRuns.bookId} = ANY(${bookIds})`);
+      .where(inArray(workflowRuns.bookId, bookIds));
 
     for (const w of workflowRows) {
       if (

@@ -5,26 +5,37 @@
 // Tracks emotional shifts across the book (tone arc).
 // ---------------------------------------------------------------------------
 
+import { z } from "zod/v4";
 import type { BookAnalysisStateType } from "../state";
 import type { EmotionResult } from "@/lib/types";
 import { runAgentOverChunks } from "@/lib/agents/base";
 
-interface EmotionOutput {
-  emotions: {
-    primary: string;
-    secondary: string[];
-    intensity: number;
-    valence: "positive" | "negative" | "neutral" | "mixed";
-  }[];
-  overallTone: string;
-  toneShiftPoints: { chunkIndex: number; description: string }[];
-}
+const emotionOutputSchema = z.object({
+  emotions: z.array(
+    z.object({
+      primary: z.string(),
+      secondary: z.array(z.string()),
+      intensity: z.number(),
+      valence: z.enum(["positive", "negative", "neutral", "mixed"]),
+    })
+  ),
+  overallTone: z.string(),
+  toneShiftPoints: z.array(
+    z.object({
+      chunkIndex: z.number(),
+      description: z.string(),
+    })
+  ),
+});
+
+type EmotionOutput = z.infer<typeof emotionOutputSchema>;
 
 export async function emotionAnalyzer(
   state: BookAnalysisStateType
 ): Promise<Partial<BookAnalysisStateType>> {
   const results = await runAgentOverChunks<EmotionOutput>(state, {
     name: "EmotionAgent",
+    outputSchema: emotionOutputSchema,
     systemPrompt: `You are an emotional and sentiment analysis expert. Your role is to identify the emotional content of text passages.
 
 For each passage, analyze:
