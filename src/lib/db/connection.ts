@@ -17,14 +17,20 @@ function createPool(): Pool {
     throw new Error("DATABASE_URL is not set. Check your .env.local file.");
   }
 
+  const isProd = process.env.NODE_ENV === "production";
+
   return new Pool({
     connectionString: process.env.DATABASE_URL,
-    // Production-ready pool sizing:
-    // - max: upper bound of simultaneous connections
-    // - idleTimeoutMillis: close idle connections after 30s
-    max: 20,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    // Serverless-friendly pool sizing:
+    // - Vercel functions handle 1 request at a time; keep max low
+    // - Short idle timeout to release connections between invocations
+    max: isProd ? 3 : 20,
+    idleTimeoutMillis: isProd ? 10_000 : 30_000,
+    connectionTimeoutMillis: 10_000,
+    // Vercel serverless requires SSL for external databases
+    ...(isProd && {
+      ssl: { rejectUnauthorized: false },
+    }),
   });
 }
 
