@@ -35,7 +35,7 @@ export function SummaryPoster(props: {
   palette?: typeof PALETTES[number];
 }) {
   const p = props.palette ?? PALETTES[0]!;
-  const short = props.summary.length > 480 ? props.summary.slice(0, 480).replace(/\n/g, " ") + "…" : props.summary;
+  const short = props.summary.length > 650 ? props.summary.slice(0, 650).replace(/\n/g, " ") + "…" : props.summary;
   const author = props.author ?? "";
 
   return (
@@ -50,19 +50,12 @@ export function SummaryPoster(props: {
         <p style={s({ fontSize: 46, fontWeight: 900, letterSpacing: 4, color: p.text, margin: 0 })}>{text(props.title)}</p>
         <p style={s({ fontSize: 20, color: p.muted, margin: 0, marginTop: 12, fontWeight: 300 })}>{text(author)}</p>
       </div>
-      {/* highlight */}
-      <div style={s({ display: "flex", marginBottom: 36 })}>
-        <div style={s({ width: 4, background: p.accent, borderRadius: 2, flexShrink: 0 })} />
-        <div style={s({ display: "flex", flex: 1, background: p.cardBg, borderRadius: 16, padding: "36px 40px" })}>
-          <p style={s({ fontSize: 22, lineHeight: 1.8, color: p.text, margin: 0, opacity: 0.92 })}>{text(short.slice(0, 200) + "…")}</p>
-        </div>
-      </div>
       {/* summary body */}
       <div style={s({ display: "flex", flexDirection: "column", flex: 1 })}>
-        <p style={s({ fontSize: 18, fontWeight: 700, color: p.accent, margin: 0, marginBottom: 16, letterSpacing: 6 })}>
+        <p style={s({ fontSize: 18, fontWeight: 700, color: p.accent, margin: 0, marginBottom: 20, letterSpacing: 6 })}>
           {"—"} 摘要 {"—"}
         </p>
-        <p style={s({ fontSize: 17, lineHeight: 2, color: p.muted, margin: 0 })}>{text(short)}</p>
+        <p style={s({ fontSize: 22, lineHeight: 2, color: p.text, margin: 0, opacity: 0.88 })}>{text(short)}</p>
       </div>
       {/* footer */}
       <div style={s({ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 40, paddingTop: 30, borderTop: `1px solid ${p.tag}` })}>
@@ -236,6 +229,146 @@ export function ThemePoster(props: {
         </div>
       </div>
 
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Character Poster
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function CharacterPoster(props: {
+  title: string; author?: string;
+  characters: { name: string; role: string; traits: string[]; speechStyle: string; arc: string; relationships?: { with: string; type: string; description: string }[] }[];
+  palette?: typeof PALETTES[number];
+}) {
+  const p = props.palette ?? PALETTES[0]!;
+  const author = props.author ?? "";
+  const top = (props.characters ?? []).slice(0, 4);
+
+  const roleLabel: Record<string, string> = {
+    protagonist: "主角", antagonist: "反派", supporting: "配角", minor: "次要角色",
+  };
+
+  return (
+    <div style={s({ display: "flex", flexDirection: "column", width: 800, height: 1200, background: p.bg, color: p.text, fontFamily: FONT, padding: 50 })}>
+      {/* header */}
+      <div style={s({ display: "flex", flexDirection: "column", marginBottom: 30 })}>
+        <div style={s({ display: "flex", gap: 8, marginBottom: 20 })}>
+          <div style={s({ width: 60, height: 3, background: p.accent, borderRadius: 2 })} />
+          <div style={s({ width: 16, height: 3, background: p.accent, borderRadius: 2, opacity: 0.4 })} />
+        </div>
+        <p style={s({ fontSize: 34, fontWeight: 900, letterSpacing: 2, color: p.text, margin: 0 })}>{text(props.title)}</p>
+        <p style={s({ fontSize: 17, color: p.muted, margin: 0, marginTop: 8 })}>{text(author)}</p>
+        <div style={s({ display: "flex", alignItems: "center", gap: 10, marginTop: 16 })}>
+          <div style={s({ width: 24, height: 1, background: p.accent, opacity: 0.5 })} />
+          <p style={s({ fontSize: 13, color: p.accent, margin: 0, letterSpacing: 6, fontWeight: 600 })}>{"人 物 群 像"}</p>
+          <div style={s({ flex: 1, height: 1, background: p.accent, opacity: 0.15 })} />
+        </div>
+      </div>
+
+      {/* character cards */}
+      <div style={s({ display: "flex", flexDirection: "column", gap: 18, flex: 1 })}>
+        {top.map((c, i) => (
+          <div key={i} style={s({ display: "flex", flexDirection: "column", gap: 8, padding: "16px 22px", background: p.cardBg, borderRadius: 12 })}>
+            {/* row 1: name + role + number */}
+            <div style={s({ display: "flex", alignItems: "center", gap: 10 })}>
+              <p style={s({ fontSize: 20, fontWeight: 900, color: p.accent, margin: 0, opacity: 0.8, width: 20 })}>{num(i + 1)}</p>
+              <p style={s({ fontSize: 22, fontWeight: 700, color: p.text, margin: 0 })}>{text(c.name)}</p>
+              <div style={s({ display: "flex", padding: "2px 12px", background: p.accent, borderRadius: 10 })}>
+                <p style={s({ fontSize: 11, fontWeight: 700, color: p.bg, margin: 0 })}>{text(roleLabel[c.role] ?? c.role)}</p>
+              </div>
+            </div>
+            {/* row 2: traits */}
+            <div style={s({ display: "flex", flexWrap: "wrap", gap: 4, paddingLeft: 30 })}>
+              {(c.traits ?? []).slice(0, 6).map((t, j) => (
+                <div key={j} style={s({ display: "flex", padding: "2px 10px", background: p.tag, borderRadius: 6 })}>
+                  <p style={s({ fontSize: 11, color: p.muted, margin: 0 })}>{text(t)}</p>
+                </div>
+              ))}
+            </div>
+            {/* row 3: speech style */}
+            <div style={s({ display: "flex", gap: 6, paddingLeft: 30 })}>
+              <p style={s({ fontSize: 11, color: p.accent, margin: 0, fontWeight: 600, flexShrink: 0 })}>{"语言"}</p>
+              <p style={s({ fontSize: 11, color: p.muted, margin: 0, lineHeight: 1.5 })}>{text(c.speechStyle?.slice(0, 80) ?? "")}</p>
+            </div>
+            {/* row 4: arc */}
+            <div style={s({ display: "flex", gap: 6, paddingLeft: 30 })}>
+              <p style={s({ fontSize: 11, color: p.accent, margin: 0, fontWeight: 600, flexShrink: 0 })}>{"弧光"}</p>
+              <p style={s({ fontSize: 11, color: p.muted, margin: 0, lineHeight: 1.5 })}>{text(c.arc?.slice(0, 100) ?? "")}</p>
+            </div>
+            {/* row 5: relationships */}
+            {c.relationships && c.relationships.length > 0 && (
+              <div style={s({ display: "flex", gap: 6, paddingLeft: 30, flexWrap: "wrap" })}>
+                <p style={s({ fontSize: 11, color: p.accent, margin: 0, fontWeight: 600, flexShrink: 0 })}>{"关联"}</p>
+                <div style={s({ display: "flex", flexWrap: "wrap", gap: 4 })}>
+                  {c.relationships.slice(0, 3).map((r, j) => (
+                    <div key={j} style={s({ display: "flex", padding: "1px 8px", background: p.bg, borderRadius: 6, border: "1px solid " + p.tag })}>
+                      <p style={s({ fontSize: 10, color: p.muted, margin: 0 })}>{text(r.with)}{" "}{text(r.type)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* footer */}
+      <div style={s({ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 24, paddingTop: 16, borderTop: "1px solid " + p.tag })}>
+        <p style={s({ fontSize: 11, color: p.muted, opacity: 0.45, margin: 0 })}>ReadMeet 洞察 {"·"} 人物分析</p>
+        <div style={s({ display: "flex", padding: "5px 14px", background: p.tag, borderRadius: 12 })}>
+          <p style={s({ fontSize: 12, color: p.tagText, margin: 0, fontWeight: 700 })}>{num(props.characters.length)} 个人物</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Generic Analysis Poster — psychology, sociology, politicalEconomy, literaryCritic, religious
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function GenericAnalysisPoster(props: {
+  title: string; author?: string; label: string;
+  sections: { label: string; content: string }[];
+  palette?: typeof PALETTES[number];
+}) {
+  const p = props.palette ?? PALETTES[0]!;
+  const author = props.author ?? "";
+
+  return (
+    <div style={s({ display: "flex", flexDirection: "column", width: 800, height: 1200, background: p.bg, color: p.text, fontFamily: FONT, padding: 55 })}>
+      <div style={s({ display: "flex", flexDirection: "column", marginBottom: 36 })}>
+        <div style={s({ display: "flex", gap: 8, marginBottom: 24 })}>
+          <div style={s({ width: 60, height: 3, background: p.accent, borderRadius: 2 })} />
+          <div style={s({ width: 16, height: 3, background: p.accent, borderRadius: 2, opacity: 0.4 })} />
+        </div>
+        <p style={s({ fontSize: 34, fontWeight: 900, letterSpacing: 3, color: p.text, margin: 0 })}>{text(props.title)}</p>
+        <p style={s({ fontSize: 18, color: p.muted, margin: 0, marginTop: 10 })}>{text(author)}</p>
+        <div style={s({ display: "flex", alignItems: "center", gap: 12, marginTop: 20 })}>
+          <div style={s({ width: 30, height: 1, background: p.accent, opacity: 0.5 })} />
+          <p style={s({ fontSize: 15, color: p.accent, margin: 0, letterSpacing: 8, fontWeight: 600 })}>{text(props.label)}</p>
+          <div style={s({ flex: 1, height: 1, background: p.accent, opacity: 0.2 })} />
+        </div>
+      </div>
+      <div style={s({ display: "flex", flexDirection: "column", gap: 24, flex: 1 })}>
+        {props.sections.map((sec, i) => (
+          <div key={i} style={s({ display: "flex", flexDirection: "column", gap: 6 })}>
+            <div style={s({ display: "flex", alignItems: "center", gap: 8 })}>
+              <div style={s({ width: 4, height: 4, borderRadius: 2, background: p.accent, opacity: 0.7 })} />
+              <p style={s({ fontSize: 15, fontWeight: 700, color: p.accent, margin: 0 })}>{text(sec.label)}</p>
+            </div>
+            <p style={s({ fontSize: 15, lineHeight: 1.75, color: p.muted, margin: 0, paddingLeft: 12 })}>{text(sec.content)}</p>
+          </div>
+        ))}
+      </div>
+      <div style={s({ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 30, paddingTop: 20, borderTop: "1px solid " + p.tag })}>
+        <p style={s({ fontSize: 12, color: p.muted, opacity: 0.5, margin: 0 })}>ReadMeet 洞察 {"·"} 深度分析</p>
+        <div style={s({ display: "flex", padding: "6px 16px", background: p.tag, borderRadius: 14 })}>
+          <p style={s({ fontSize: 13, color: p.tagText, margin: 0, fontWeight: 700 })}>{text(props.label)}</p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -8,10 +8,10 @@
 // ---------------------------------------------------------------------------
 
 import { db } from "@/lib/db/connection";
-import { books } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { books, users } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { UploadBookSchema } from "@/lib/api/validators";
-import { authenticate } from "@/lib/auth";
+import { authenticate, canAnalyze } from "@/lib/auth";
 import { created, badRequest, error } from "@/lib/api/responses";
 import { withErrorHandler } from "@/lib/api/errors";
 import { triggerWorkflow } from "@/lib/workflow";
@@ -29,6 +29,15 @@ export const POST = withErrorHandler(async (request: Request) => {
   }
 
   const { title, author, text } = parsed.data;
+
+  // ── Quota check ──────────────────────────────────────────────────────
+  if (!canAnalyze(user)) {
+    return error(
+      "QUOTA_EXCEEDED",
+      "本月免费分析额度已用完（3本/月）。请升级会员继续使用。",
+      402
+    );
+  }
 
   // Create book record
   const [book] = await db
@@ -72,6 +81,15 @@ export const POST = withErrorHandler(async (request: Request) => {
       .update(books)
       .set({ status: "uploaded" })
       .where(eq(books.id, book.id));
+  }
+
+  // Increment analysis count for quota tracking
+  if (workflowId) {
+    await db
+      .update(users)
+      .set({ analysisCount: sql`analysis_count + 1` })
+      .where(eq(users.id, user.sub))
+      .catch(() => {});
   }
 
   return created(

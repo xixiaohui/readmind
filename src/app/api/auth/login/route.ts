@@ -11,20 +11,37 @@ import { withErrorHandler } from "@/lib/api/errors";
 
 export const POST = withErrorHandler(async (request: Request) => {
   const { email, password } = await request.json();
-  if (!email || !password) return badRequest("Email and password required");
+  if (!email || !password) return badRequest("邮箱和密码不能为空");
 
   const [user] = await db
-    .select({ id: users.id, email: users.email, name: users.name, passwordHash: users.passwordHash })
+    .select({
+      id: users.id, email: users.email, name: users.name,
+      passwordHash: users.passwordHash,
+      membershipTier: users.membershipTier,
+      membershipExpires: users.membershipExpires,
+      analysisCount: users.analysisCount,
+      analysisLimit: users.analysisLimit,
+    })
     .from(users)
     .where(eq(users.email, (email as string).toLowerCase()))
     .limit(1);
 
-  if (!user) return badRequest("Invalid email or password");
+  if (!user) return badRequest("邮箱或密码错误");
 
   const valid = await verifyPassword(password as string, user.passwordHash);
-  if (!valid) return badRequest("Invalid email or password");
+  if (!valid) return badRequest("邮箱或密码错误");
 
-  const token = await signToken({ sub: user.id, email: user.email });
+  const token = await signToken({
+    sub: user.id,
+    email: user.email,
+    membership: user.membershipTier,
+    expiresAt: user.membershipExpires?.toISOString() ?? null,
+    analysisCount: user.analysisCount,
+    analysisLimit: user.analysisLimit,
+  });
 
-  return ok({ user: { id: user.id, email: user.email, name: user.name }, token });
+  return ok({
+    user: { id: user.id, email: user.email, name: user.name },
+    token,
+  });
 });

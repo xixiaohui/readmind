@@ -7,6 +7,7 @@ import {
   BookOpen, Loader2, Brain, Quote, Lightbulb, Heart,
   Sparkles, Hash, BarChart3, ArrowLeft, ExternalLink, AlertCircle,
   Play, RotateCcw, Trash2, Image as ImageIcon,
+  Users, Activity, Building2, Landmark, PenTool, Church,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,6 +78,11 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
         body: JSON.stringify({ bookId: id }),
       });
       if (!res.ok) {
+        if (res.status === 402) {
+          alert("本月免费分析额度已用完（3本/月）。请升级会员继续使用。");
+          router.push("/pricing");
+          return;
+        }
         const err = await res.json().catch(() => ({}));
         console.error("Analysis start failed:", res.status, err);
       }
@@ -103,6 +109,12 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const summaryResult = getResult("summary") as { summary?: string } | undefined;
   const emotionResult = getResult("emotion") as { emotions?: { overallTone: string; valenceDistribution: Record<string, number>; emotionArc: { label: string; intensity: number }[] } } | undefined;
   const philosophyResult = getResult("philosophy") as { philosophy?: { primaryFrameworks: { name: string; confidence: number }[]; argumentSummary: string } } | undefined;
+  const characterResult = getResult("character") as { characters?: { name: string; role: string; traits: string[]; speechStyle: string; arc: string; relationships: { with: string; type: string; description: string }[] }[]; analysisSummary?: string } | undefined;
+  const psychologyResult = getResult("psychology") as { psychologicalThemes?: string[]; characterProfiles?: { character: string; motivations: string[]; biases: string[]; defenses: string[] }[]; groupDynamics?: string; defenseMechanisms?: string } | undefined;
+  const sociologyResult = getResult("sociology") as { socialStructure?: string; powerDynamics?: string; normsAndTaboos?: string; collectiveAction?: string; culturalCapital?: string } | undefined;
+  const politicalEconomyResult = getResult("politicalEconomy") as { politicalSystem?: string; ideologicalConflicts?: string; economicStructure?: string; classStruggle?: string; institutionalCritique?: string } | undefined;
+  const literaryCriticResult = getResult("literaryCritic") as { narrativeTechnique?: string; symbolism?: string; proseStyle?: string; genreAnalysis?: string; intertextuality?: string; literaryMerit?: string } | undefined;
+  const religiousResult = getResult("religious") as { beliefSystems?: string; moralFramework?: string; existentialThemes?: string; transcendentExperiences?: string; rituals?: string } | undefined;
 
   const categoryColors: Record<string, string> = { insight: "bg-blue-400/10 text-blue-400", wisdom: "bg-amber-400/10 text-amber-400", emotional: "bg-rose-400/10 text-rose-400", philosophical: "bg-violet-400/10 text-violet-400", practical: "bg-emerald-400/10 text-emerald-400" };
 
@@ -273,6 +285,12 @@ const nodeDesc: Record<string, string> = {
             <TabsTrigger value="quotes" className="gap-1"><Quote className="h-3.5 w-3.5" /> 金句</TabsTrigger>
             <TabsTrigger value="philosophy" className="gap-1"><Brain className="h-3.5 w-3.5" /> 哲学</TabsTrigger>
             <TabsTrigger value="emotions" className="gap-1"><Heart className="h-3.5 w-3.5" /> 情感</TabsTrigger>
+            {characterResult && <TabsTrigger value="characters" className="gap-1"><Users className="h-3.5 w-3.5" /> 人物</TabsTrigger>}
+            {psychologyResult && <TabsTrigger value="psychology" className="gap-1"><Activity className="h-3.5 w-3.5" /> 心理</TabsTrigger>}
+            {sociologyResult && <TabsTrigger value="sociology" className="gap-1"><Building2 className="h-3.5 w-3.5" /> 社会</TabsTrigger>}
+            {politicalEconomyResult && <TabsTrigger value="politicalEconomy" className="gap-1"><Landmark className="h-3.5 w-3.5" /> 政经</TabsTrigger>}
+            {literaryCriticResult && <TabsTrigger value="literaryCritic" className="gap-1"><PenTool className="h-3.5 w-3.5" /> 文学</TabsTrigger>}
+            {religiousResult && <TabsTrigger value="religious" className="gap-1"><Church className="h-3.5 w-3.5" /> 宗教</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="summary">
@@ -417,6 +435,132 @@ const nodeDesc: Record<string, string> = {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── Deep Analysis Tabs ──────────────────────────────────── */}
+          {characterResult && (
+            <TabsContent value="characters">
+              <Card>
+                <CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" /> 人物分析</CardTitle><a href={`/api/books/${book.id}/poster?type=character`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"><ImageIcon className="h-3 w-3" /> 海报</a></div></CardHeader>
+                <CardContent className="space-y-6">
+                  {characterResult.characters?.map((c, i) => (
+                    <div key={i} className="border border-border rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-lg">{c.name}</span>
+                        <Badge variant="secondary" className="text-xs">{c.role}</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {c.traits?.map((t, j) => <Badge key={j} variant="outline" className="text-xs">{t}</Badge>)}
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2"><strong>语言风格：</strong>{c.speechStyle}</p>
+                      <p className="text-sm text-muted-foreground mb-2"><strong>人物弧光：</strong>{c.arc}</p>
+                      {c.relationships?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <p className="text-xs font-medium mb-2">人物关系</p>
+                          {c.relationships.map((r, j) => (
+                            <div key={j} className="text-xs text-muted-foreground ml-2 mb-1">
+                              <Badge variant="secondary" className="text-xs mr-1">{r.with}</Badge>
+                              {r.type} — {r.description}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {characterResult.analysisSummary && (
+                    <p className="text-sm text-muted-foreground mt-4 italic">{characterResult.analysisSummary}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {psychologyResult && (
+            <TabsContent value="psychology">
+              <Card>
+                <CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> 心理学分析</CardTitle><a href={`/api/books/${book.id}/poster?type=psychology`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"><ImageIcon className="h-3 w-3" /> 海报</a></div></CardHeader>
+                <CardContent className="space-y-4">
+                  {psychologyResult.psychologicalThemes && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">心理主题</h4>
+                      <div className="flex flex-wrap gap-1.5">{psychologyResult.psychologicalThemes.map((t, i) => <Badge key={i} variant="secondary">{t}</Badge>)}</div>
+                    </div>
+                  )}
+                  {psychologyResult.characterProfiles?.map((p, i) => (
+                    <div key={i} className="border border-border rounded-lg p-3">
+                      <p className="font-medium text-sm mb-2">{p.character}</p>
+                      <p className="text-xs text-muted-foreground"><strong>动机：</strong>{p.motivations?.join("、")}</p>
+                      <p className="text-xs text-muted-foreground"><strong>认知偏差：</strong>{p.biases?.join("、")}</p>
+                      <p className="text-xs text-muted-foreground"><strong>防御机制：</strong>{p.defenses?.join("、")}</p>
+                    </div>
+                  ))}
+                  {psychologyResult.groupDynamics && <p className="text-sm text-muted-foreground"><strong>群体心理：</strong>{psychologyResult.groupDynamics}</p>}
+                  {psychologyResult.defenseMechanisms && <p className="text-sm text-muted-foreground"><strong>防御机制总评：</strong>{psychologyResult.defenseMechanisms}</p>}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {sociologyResult && (
+            <TabsContent value="sociology">
+              <Card>
+                <CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-4 w-4" /> 社会学分析</CardTitle><a href={`/api/books/${book.id}/poster?type=sociology`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"><ImageIcon className="h-3 w-3" /> 海报</a></div></CardHeader>
+                <CardContent className="space-y-4">
+                  {sociologyResult.socialStructure && <div><h4 className="text-sm font-medium">社会结构</h4><p className="text-sm text-muted-foreground">{sociologyResult.socialStructure}</p></div>}
+                  {sociologyResult.powerDynamics && <div><h4 className="text-sm font-medium">权力关系</h4><p className="text-sm text-muted-foreground">{sociologyResult.powerDynamics}</p></div>}
+                  {sociologyResult.normsAndTaboos && <div><h4 className="text-sm font-medium">规范与禁忌</h4><p className="text-sm text-muted-foreground">{sociologyResult.normsAndTaboos}</p></div>}
+                  {sociologyResult.collectiveAction && <div><h4 className="text-sm font-medium">集体行动</h4><p className="text-sm text-muted-foreground">{sociologyResult.collectiveAction}</p></div>}
+                  {sociologyResult.culturalCapital && <div><h4 className="text-sm font-medium">文化资本</h4><p className="text-sm text-muted-foreground">{sociologyResult.culturalCapital}</p></div>}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {politicalEconomyResult && (
+            <TabsContent value="politicalEconomy">
+              <Card>
+                <CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><Landmark className="h-4 w-4" /> 政治经济分析</CardTitle><a href={`/api/books/${book.id}/poster?type=politicalEconomy`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"><ImageIcon className="h-3 w-3" /> 海报</a></div></CardHeader>
+                <CardContent className="space-y-4">
+                  {politicalEconomyResult.politicalSystem && <div><h4 className="text-sm font-medium">政治体制</h4><p className="text-sm text-muted-foreground">{politicalEconomyResult.politicalSystem}</p></div>}
+                  {politicalEconomyResult.ideologicalConflicts && <div><h4 className="text-sm font-medium">意识形态冲突</h4><p className="text-sm text-muted-foreground">{politicalEconomyResult.ideologicalConflicts}</p></div>}
+                  {politicalEconomyResult.economicStructure && <div><h4 className="text-sm font-medium">经济结构</h4><p className="text-sm text-muted-foreground">{politicalEconomyResult.economicStructure}</p></div>}
+                  {politicalEconomyResult.classStruggle && <div><h4 className="text-sm font-medium">阶级矛盾</h4><p className="text-sm text-muted-foreground">{politicalEconomyResult.classStruggle}</p></div>}
+                  {politicalEconomyResult.institutionalCritique && <div><h4 className="text-sm font-medium">制度批判</h4><p className="text-sm text-muted-foreground">{politicalEconomyResult.institutionalCritique}</p></div>}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {literaryCriticResult && (
+            <TabsContent value="literaryCritic">
+              <Card>
+                <CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><PenTool className="h-4 w-4" /> 文学评论</CardTitle><a href={`/api/books/${book.id}/poster?type=literaryCritic`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"><ImageIcon className="h-3 w-3" /> 海报</a></div></CardHeader>
+                <CardContent className="space-y-4">
+                  {literaryCriticResult.narrativeTechnique && <div><h4 className="text-sm font-medium">叙事技巧</h4><p className="text-sm text-muted-foreground">{literaryCriticResult.narrativeTechnique}</p></div>}
+                  {literaryCriticResult.symbolism && <div><h4 className="text-sm font-medium">象征与隐喻</h4><p className="text-sm text-muted-foreground">{literaryCriticResult.symbolism}</p></div>}
+                  {literaryCriticResult.proseStyle && <div><h4 className="text-sm font-medium">语言风格</h4><p className="text-sm text-muted-foreground">{literaryCriticResult.proseStyle}</p></div>}
+                  {literaryCriticResult.genreAnalysis && <div><h4 className="text-sm font-medium">文体特征</h4><p className="text-sm text-muted-foreground">{literaryCriticResult.genreAnalysis}</p></div>}
+                  {literaryCriticResult.intertextuality && <div><h4 className="text-sm font-medium">互文性</h4><p className="text-sm text-muted-foreground">{literaryCriticResult.intertextuality}</p></div>}
+                  {literaryCriticResult.literaryMerit && <div><h4 className="text-sm font-medium">文学价值</h4><p className="text-sm text-muted-foreground">{literaryCriticResult.literaryMerit}</p></div>}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {religiousResult && (
+            <TabsContent value="religious">
+              <Card>
+                <CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base flex items-center gap-2"><Church className="h-4 w-4" /> 宗教与精神分析</CardTitle><a href={`/api/books/${book.id}/poster?type=religious`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"><ImageIcon className="h-3 w-3" /> 海报</a></div></CardHeader>
+                <CardContent className="space-y-4">
+                  {religiousResult.beliefSystems && <div><h4 className="text-sm font-medium">信仰体系</h4><p className="text-sm text-muted-foreground">{religiousResult.beliefSystems}</p></div>}
+                  {religiousResult.moralFramework && <div><h4 className="text-sm font-medium">道德框架</h4><p className="text-sm text-muted-foreground">{religiousResult.moralFramework}</p></div>}
+                  {religiousResult.existentialThemes && <div><h4 className="text-sm font-medium">存在主义议题</h4><p className="text-sm text-muted-foreground">{religiousResult.existentialThemes}</p></div>}
+                  {religiousResult.transcendentExperiences && <div><h4 className="text-sm font-medium">超越性体验</h4><p className="text-sm text-muted-foreground">{religiousResult.transcendentExperiences}</p></div>}
+                  {religiousResult.rituals && <div><h4 className="text-sm font-medium">仪式实践</h4><p className="text-sm text-muted-foreground">{religiousResult.rituals}</p></div>}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
         </Tabs>
       ) : book.status === "failed" || latestWorkflow?.status === "failed" ? (
         /* Failed — show retry button */

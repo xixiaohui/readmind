@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { BookOpen, Upload, Library } from "lucide-react";
+import { BookOpen, Upload, Library, Crown, User } from "lucide-react";
 import { AuthProvider } from "@/components/AuthProvider";
 import { UserMenu } from "@/components/UserMenu";
 import "./globals.css";
@@ -10,18 +10,20 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ReadMeet Insight — AI Cognitive Reading",
-  description: "Deep AI-powered book analysis. Themes, quotes, philosophy, emotions — extracted by multi-agent cognitive pipeline.",
+  title: "ReadMeet 洞察 — AI 深度阅读",
+  description: "AI 驱动的书籍深度分析。主题、金句、哲学、情感 — 多智能体认知流水线提取。",
 };
 
 const navItems = [
-  { href: "/library", label: "Library", icon: Library },
-  { href: "/upload", label: "Upload", icon: Upload },
+  { href: "/library", label: "书库", icon: Library },
+  { href: "/upload", label: "上传", icon: Upload },
+  { href: "/pricing", label: "会员", icon: Crown },
+  { href: "/account", label: "账户", icon: User },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}>
+    <html lang="zh-CN" className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AuthProvider>
           <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">

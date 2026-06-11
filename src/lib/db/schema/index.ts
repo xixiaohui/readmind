@@ -19,3 +19,4 @@ export { quotes } from "./quotes";
 export { themes } from "./themes";
 export { userLibrary } from "./library";
 export { users } from "./users";
+export { paymentOrders } from "./payments";

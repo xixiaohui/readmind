@@ -14,14 +14,34 @@ const JWT_ISSUER = "readmind";
 const JWT_EXPIRATION = "30d"; // device-safe: long-lived for mobile
 
 export interface JwtPayload {
-  sub: string;   // user ID
+  sub: string;          // user ID
   email: string;
+  membership: string;   // "free" | "monthly" | "quarterly" | "yearly"
+  expiresAt: string | null;
+  analysisCount: number;
+  analysisLimit: number;
   iat?: number;
   exp?: number;
 }
 
-export async function signToken(payload: { sub: string; email: string }): Promise<string> {
-  return new SignJWT({ ...payload } as Record<string, unknown>)
+export interface SignTokenInput {
+  sub: string;
+  email: string;
+  membership?: string;
+  expiresAt?: string | null;
+  analysisCount?: number;
+  analysisLimit?: number;
+}
+
+export async function signToken(payload: SignTokenInput): Promise<string> {
+  return new SignJWT({
+    sub: payload.sub,
+    email: payload.email,
+    membership: payload.membership ?? "free",
+    expiresAt: payload.expiresAt ?? null,
+    analysisCount: payload.analysisCount ?? 0,
+    analysisLimit: payload.analysisLimit ?? 3,
+  } as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer(JWT_ISSUER)

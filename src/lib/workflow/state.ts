@@ -66,6 +66,13 @@ import type {
   WorkflowStatus,
   WorkflowError,
   AggregatedAnalysis,
+  CharacterResult,
+  PsychologyResult,
+  SociologyResult,
+  PoliticalEconomyResult,
+  LiteraryCriticResult,
+  ReligiousResult,
+  DeepAnalysisSet,
 } from "@/lib/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -121,6 +128,15 @@ export const BookAnalysisStateSchema = z.object({
   // Aggregated Result (nullable — only set after aggregateResults completes)
   aggregatedResult: z.any().nullable(),
 
+  // Deep Analysis (Phase 2 — full-book context, 6 agents)
+  characterAnalysis: z.any().nullable(),
+  psychologyAnalysis: z.any().nullable(),
+  sociologyAnalysis: z.any().nullable(),
+  politicalEconomyAnalysis: z.any().nullable(),
+  literaryCriticAnalysis: z.any().nullable(),
+  religiousAnalysis: z.any().nullable(),
+  deepAggregated: z.any().nullable(),
+
   // Workflow Control
   workflowStatus: z.enum(["idle", "running", "completed", "failed"]),
   currentNode: z.string(),
@@ -148,6 +164,13 @@ export interface BookAnalysisStateType {
   emotions: EmotionResult[];
   embeddings: number[][];
   aggregatedResult: AggregatedAnalysis | null;
+  characterAnalysis: CharacterResult | null;
+  psychologyAnalysis: PsychologyResult | null;
+  sociologyAnalysis: SociologyResult | null;
+  politicalEconomyAnalysis: PoliticalEconomyResult | null;
+  literaryCriticAnalysis: LiteraryCriticResult | null;
+  religiousAnalysis: ReligiousResult | null;
+  deepAggregated: DeepAnalysisSet | null;
   workflowStatus: WorkflowStatus;
   currentNode: string;
   retryCount: number;
@@ -195,6 +218,15 @@ export function createInitialState(params: CreateStateParams): BookAnalysisState
 
     // Aggregated Result — populated by aggregateResults
     aggregatedResult: null,
+
+    // Deep Analysis — populated by Phase 2 agents
+    characterAnalysis: null,
+    psychologyAnalysis: null,
+    sociologyAnalysis: null,
+    politicalEconomyAnalysis: null,
+    literaryCriticAnalysis: null,
+    religiousAnalysis: null,
+    deepAggregated: null,
 
     // Workflow Control
     workflowStatus: "idle",
@@ -287,6 +319,13 @@ export const NodeStateTransitions: Record<string, (keyof BookAnalysisStateType)[
   philosophyAnalyzer: ["philosophy", "currentNode"],
   emotionAnalyzer: ["emotions", "currentChunkIndex", "currentNode"],
   aggregateResults: ["currentNode"],
+  characterAnalyzer: ["characterAnalysis", "currentNode"],
+  psychologyAnalyzer: ["psychologyAnalysis", "currentNode"],
+  sociologyAnalyzer: ["sociologyAnalysis", "currentNode"],
+  politicalEconomyAnalyzer: ["politicalEconomyAnalysis", "currentNode"],
+  literaryCriticAnalyzer: ["literaryCriticAnalysis", "currentNode"],
+  religiousAnalyzer: ["religiousAnalysis", "currentNode"],
+  aggregateDeepResults: ["deepAggregated", "currentNode"],
   saveAnalysis: ["workflowStatus", "currentNode"],
 };
 
@@ -417,6 +456,15 @@ export const BookAnalysisState = Annotation.Root({
     reducer: (_, next) => next,
     default: () => null,
   }),
+
+  // ── Deep Analysis ──
+  characterAnalysis: Annotation<CharacterResult | null>({ reducer: (_, next) => next, default: () => null }),
+  psychologyAnalysis: Annotation<PsychologyResult | null>({ reducer: (_, next) => next, default: () => null }),
+  sociologyAnalysis: Annotation<SociologyResult | null>({ reducer: (_, next) => next, default: () => null }),
+  politicalEconomyAnalysis: Annotation<PoliticalEconomyResult | null>({ reducer: (_, next) => next, default: () => null }),
+  literaryCriticAnalysis: Annotation<LiteraryCriticResult | null>({ reducer: (_, next) => next, default: () => null }),
+  religiousAnalysis: Annotation<ReligiousResult | null>({ reducer: (_, next) => next, default: () => null }),
+  deepAggregated: Annotation<DeepAnalysisSet | null>({ reducer: (_, next) => next, default: () => null }),
 
   // ── Workflow Control ──
   workflowStatus: Annotation<WorkflowStatus>({

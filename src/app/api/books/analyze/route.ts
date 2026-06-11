@@ -14,7 +14,7 @@
 import { db } from "@/lib/db/connection";
 import { books } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { authenticate } from "@/lib/auth";
+import { authenticate, canAnalyze } from "@/lib/auth";
 import { AnalyzeBookSchema } from "@/lib/api/validators";
 import { accepted, badRequest, notFound, error } from "@/lib/api/responses";
 import { withErrorHandler } from "@/lib/api/errors";
@@ -43,6 +43,15 @@ export const POST = withErrorHandler(async (request: Request) => {
 
   if (!book) {
     return notFound("Book not found");
+  }
+
+  // ── Quota check ──────────────────────────────────────────────────────
+  if (!canAnalyze(user)) {
+    return error(
+      "QUOTA_EXCEEDED",
+      "本月免费分析额度已用完（3本/月）。请升级会员继续使用。",
+      402
+    );
   }
 
   // Launch workflow (fire-and-forget)

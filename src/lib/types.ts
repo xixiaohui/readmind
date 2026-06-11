@@ -130,3 +130,66 @@ export interface AggregatedAnalysis {
     model: string;
   };
 }
+
+// ─── Deep Analysis Results (Phase 2 — full-book context) ──────────────────
+
+export interface CharacterResult {
+  characters: {
+    name: string;
+    role: string; // protagonist | antagonist | supporting | minor
+    traits: string[];
+    speechStyle: string;
+    arc: string;
+    relationships: { with: string; type: string; description: string }[];
+  }[];
+  analysisSummary: string;
+}
+
+export interface PsychologyResult {
+  psychologicalThemes: string[];
+  characterProfiles: { character: string; motivations: string[]; biases: string[]; defenses: string[] }[];
+  groupDynamics: string;
+  defenseMechanisms: string;
+}
+
+export interface SociologyResult {
+  socialStructure: string;
+  powerDynamics: string;
+  normsAndTaboos: string;
+  collectiveAction: string;
+  culturalCapital: string;
+}
+
+export interface PoliticalEconomyResult {
+  politicalSystem: string;
+  ideologicalConflicts: string;
+  economicStructure: string;
+  classStruggle: string;
+  institutionalCritique: string;
+}
+
+export interface LiteraryCriticResult {
+  narrativeTechnique: string;
+  symbolism: string;
+  proseStyle: string;
+  genreAnalysis: string;
+  intertextuality: string;
+  literaryMerit: string;
+}
+
+export interface ReligiousResult {
+  beliefSystems: string;
+  moralFramework: string;
+  existentialThemes: string;
+  transcendentExperiences: string;
+  rituals: string;
+}
+
+export interface DeepAnalysisSet {
+  character?: CharacterResult;
+  psychology?: PsychologyResult;
+  sociology?: SociologyResult;
+  politicalEconomy?: PoliticalEconomyResult;
+  literaryCritic?: LiteraryCriticResult;
+  religious?: ReligiousResult;
+}

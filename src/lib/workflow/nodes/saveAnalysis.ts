@@ -98,6 +98,30 @@ export async function saveAnalysis(
     });
   }
 
+  // ── Deep Analysis (Phase 2) ────────────────────────────────────────────
+  const deep = state.deepAggregated;
+  if (deep) {
+    if (deep.character) {
+      analysisEntries.push({ bookId, workflowId, analysisType: "character", result: deep.character as unknown as Record<string, unknown> });
+    }
+    if (deep.psychology) {
+      analysisEntries.push({ bookId, workflowId, analysisType: "psychology", result: deep.psychology as unknown as Record<string, unknown> });
+    }
+    if (deep.sociology) {
+      analysisEntries.push({ bookId, workflowId, analysisType: "sociology", result: deep.sociology as unknown as Record<string, unknown> });
+    }
+    if (deep.politicalEconomy) {
+      analysisEntries.push({ bookId, workflowId, analysisType: "politicalEconomy", result: deep.politicalEconomy as unknown as Record<string, unknown> });
+    }
+    if (deep.literaryCritic) {
+      analysisEntries.push({ bookId, workflowId, analysisType: "literaryCritic", result: deep.literaryCritic as unknown as Record<string, unknown> });
+    }
+    if (deep.religious) {
+      analysisEntries.push({ bookId, workflowId, analysisType: "religious", result: deep.religious as unknown as Record<string, unknown> });
+    }
+    console.log(`[saveAnalysis] Persisted ${analysisEntries.filter(e => e.analysisType.includes("character") || e.analysisType.includes("psycho") || e.analysisType.includes("socio") || e.analysisType.includes("polit") || e.analysisType.includes("literary") || e.analysisType.includes("religious")).length} deep analyses`);
+  }
+
   // Batch insert with error isolation
   if (analysisEntries.length > 0) {
     try {

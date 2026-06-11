@@ -47,6 +47,13 @@ import {
   philosophyAnalyzer,
   emotionAnalyzer,
   aggregateResults,
+  characterAnalyzer,
+  psychologyAnalyzer,
+  sociologyAnalyzer,
+  politicalEconomyAnalyzer,
+  literaryCriticAnalyzer,
+  religiousAnalyzer,
+  aggregateDeepResults,
   saveAnalysis,
 } from "./nodes";
 
@@ -103,8 +110,33 @@ export function createBookAnalysisGraph(options: CreateGraphOptions = {}) {
     .addEdge("philosophyAnalyzer", "aggregateResults")
     .addEdge("emotionAnalyzer", "aggregateResults")
 
+    // ── Phase 2: Deep Analysis — 6 agents in parallel, full-book context ───
+    .addNode("characterAnalyzer", characterAnalyzer)
+    .addNode("psychologyAnalyzer", psychologyAnalyzer)
+    .addNode("sociologyAnalyzer", sociologyAnalyzer)
+    .addNode("politicalEconomyAnalyzer", politicalEconomyAnalyzer)
+    .addNode("literaryCriticAnalyzer", literaryCriticAnalyzer)
+    .addNode("religiousAnalyzer", religiousAnalyzer)
+    .addNode("aggregateDeepResults", aggregateDeepResults)
+
+    // Fan-out from aggregateResults → 6 deep agents
+    .addEdge("aggregateResults", "characterAnalyzer")
+    .addEdge("aggregateResults", "psychologyAnalyzer")
+    .addEdge("aggregateResults", "sociologyAnalyzer")
+    .addEdge("aggregateResults", "politicalEconomyAnalyzer")
+    .addEdge("aggregateResults", "literaryCriticAnalyzer")
+    .addEdge("aggregateResults", "religiousAnalyzer")
+
+    // Fan-in: converge at aggregateDeepResults
+    .addEdge("characterAnalyzer", "aggregateDeepResults")
+    .addEdge("psychologyAnalyzer", "aggregateDeepResults")
+    .addEdge("sociologyAnalyzer", "aggregateDeepResults")
+    .addEdge("politicalEconomyAnalyzer", "aggregateDeepResults")
+    .addEdge("literaryCriticAnalyzer", "aggregateDeepResults")
+    .addEdge("religiousAnalyzer", "aggregateDeepResults")
+
     // ── Final chain ─────────────────────────────────────────────────────────
-    .addEdge("aggregateResults", "saveAnalysis")
+    .addEdge("aggregateDeepResults", "saveAnalysis")
     .addEdge("saveAnalysis", END)
 
     // ── Compile with checkpointer ───────────────────────────────────────────
