@@ -15,12 +15,12 @@ import { runAgentOverChunks } from "@/lib/agents/base";
 const themeOutputSchema = z.object({
   themes: z.array(
     z.object({
-      name: z.string(),
-      description: z.string(),
-      weight: z.number(),
-      keywords: z.array(z.string()),
+      name: z.string().optional().default("Unnamed Theme"),
+      description: z.string().optional().default(""),
+      weight: z.number().optional().default(0.5),
+      keywords: z.array(z.string()).optional().default([]),
     })
-  ),
+  ).optional().default([]),
 });
 
 type ThemeOutput = z.infer<typeof themeOutputSchema>;

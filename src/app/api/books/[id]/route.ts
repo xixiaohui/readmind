@@ -8,7 +8,8 @@
 import { db } from "@/lib/db/connection";
 import { books, bookAnalysis, workflowRuns, workflowSteps, quotes, themes } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { ok, notFound } from "@/lib/api/responses";
+import { authenticate } from "@/lib/auth";
+import { ok, notFound, error } from "@/lib/api/responses";
 import { withErrorHandler } from "@/lib/api/errors";
 
 export const GET = withErrorHandler(async (
@@ -122,4 +123,29 @@ export const GET = withErrorHandler(async (
     quotes: bookQuotes,
     themes: bookThemes,
   });
+});
+
+export const DELETE = withErrorHandler(async (
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const user = await authenticate(request);
+  if (!user) return error("UNAUTHORIZED", "Login required", 401);
+
+  const { id: bookId } = await params;
+
+  // Verify book exists and belongs to user
+  const [book] = await db
+    .select({ id: books.id, userId: books.userId, title: books.title })
+    .from(books)
+    .where(eq(books.id, bookId))
+    .limit(1);
+
+  if (!book) return notFound("Book not found");
+  if (book.userId !== user.sub) return error("FORBIDDEN", "Not your book", 403);
+
+  // CASCADE deletes all related data: workflows, steps, analyses, quotes, themes
+  await db.delete(books).where(eq(books.id, bookId));
+
+  return ok({ deleted: bookId, title: book.title });
 });

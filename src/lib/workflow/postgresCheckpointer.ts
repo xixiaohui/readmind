@@ -129,24 +129,26 @@ export class PostgresCheckpointer extends BaseCheckpointSaver {
   async put(
     config: RunnableConfig,
     checkpoint: Checkpoint,
-    metadata: CheckpointMetadata
+    _metadata: CheckpointMetadata
   ): Promise<RunnableConfig> {
     const threadId = config.configurable?.thread_id as string;
     if (!threadId) {
       throw new Error("thread_id is required in config.configurable");
     }
 
+    // Extract currentNode from state so the UI can show real progress
+    const stateValues =
+      checkpoint.channel_values as Record<string, unknown>;
+    const currentNode = stateValues?.currentNode as string | undefined;
+
     // Persist checkpoint to PostgreSQL
     await db
       .update(workflowRuns)
       .set({
-        stateSnapshot: checkpoint.channel_values as Record<string, unknown>,
+        stateSnapshot: stateValues,
         checkpointId: checkpoint.id,
         updatedAt: new Date(),
-        // If this is a "loop" source checkpoint, update progress
-        ...(metadata.source === "loop" && {
-          currentNode: threadId, // will be overwritten by our own checkpoint system
-        }),
+        ...(currentNode && { currentNode }),
       })
       .where(eq(workflowRuns.id, threadId));
 

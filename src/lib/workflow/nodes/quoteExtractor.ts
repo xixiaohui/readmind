@@ -13,12 +13,12 @@ import { runAgentOverChunks } from "@/lib/agents/base";
 const quoteOutputSchema = z.object({
   quotes: z.array(
     z.object({
-      text: z.string(),
-      context: z.string(),
-      category: z.enum(["insight", "wisdom", "emotional", "philosophical", "practical"]),
-      score: z.number(),
+      text: z.string().optional().default(""),
+      context: z.string().optional().default(""),
+      category: z.enum(["insight", "wisdom", "emotional", "philosophical", "practical"]).optional().default("insight"),
+      score: z.number().optional().default(0.5),
     })
-  ),
+  ).optional().default([]),
 });
 
 type QuoteOutput = z.infer<typeof quoteOutputSchema>;

@@ -13,19 +13,19 @@ import { runAgentOverChunks } from "@/lib/agents/base";
 const emotionOutputSchema = z.object({
   emotions: z.array(
     z.object({
-      primary: z.string(),
-      secondary: z.array(z.string()),
-      intensity: z.number(),
-      valence: z.enum(["positive", "negative", "neutral", "mixed"]),
+      primary: z.string().optional().default("neutral"),
+      secondary: z.array(z.string()).optional().default([]),
+      intensity: z.number().optional().default(0.5),
+      valence: z.enum(["positive", "negative", "neutral", "mixed"]).optional().default("neutral"),
     })
-  ),
-  overallTone: z.string(),
+  ).optional().default([]),
+  overallTone: z.string().optional().default("Neutral"),
   toneShiftPoints: z.array(
     z.object({
-      chunkIndex: z.number(),
-      description: z.string(),
+      chunkIndex: z.number().optional().default(0),
+      description: z.string().optional().default(""),
     })
-  ),
+  ).optional().default([]),
 });
 
 type EmotionOutput = z.infer<typeof emotionOutputSchema>;

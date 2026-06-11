@@ -18,7 +18,7 @@ export function UserMenu() {
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ml-2"
       >
         <LogIn className="h-4 w-4" />
-        Sign In
+        登录
       </Link>
     );
   }

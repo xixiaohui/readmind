@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   BookOpen, Loader2, Brain, Quote, Lightbulb, Heart,
   Sparkles, Hash, BarChart3, ArrowLeft, ExternalLink, AlertCircle,
-  Play, RotateCcw,
+  Play, RotateCcw, Trash2, Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,14 +28,27 @@ interface BookData {
 
 export default function BookDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [data, setData] = useState<BookData | null>(null);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const deleteBook = async () => {
+    if (!confirm("确认删除这本书及其所有分析数据？此操作不可撤销。")) return;
+    setDeleting(true);
+    const token = localStorage.getItem("readmind_token");
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    await fetch(`/api/books/${id}`, { method: "DELETE", headers });
+    router.push("/library");
+  };
 
   const fetchBook = () => {
     fetch(`/api/books/${id}`)
-      .then((r) => r.json())
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
       .then((d) => setData(d.data))
+      .catch(() => {}) // silently ignore transient errors — next poll will retry
       .finally(() => setLoading(false));
   };
 
@@ -78,7 +92,7 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
     return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
   if (!data) {
-    return <div className="text-center py-24 text-muted-foreground">Book not found</div>;
+    return <div className="text-center py-24 text-muted-foreground">未找到书籍</div>;
   }
 
   const { book, analyses, latestWorkflow, quotes: bookQuotes, themes: bookThemes } = data;
@@ -100,21 +114,21 @@ const pipelineNodes = [
 ];
 
 const nodeLabel: Record<string, string> = {
-  init: "Init", loadBook: "Load", splitBook: "Split",
-  embeddingChunks: "Embed", themeAnalyzer: "Themes",
-  summaryAnalyzer: "Summary", quoteExtractor: "Quotes",
-  philosophyAnalyzer: "Philosophy", emotionAnalyzer: "Emotion",
-  aggregateResults: "Aggregate", saveAnalysis: "Save",
-  END: "Done", ERROR: "Error",
+  init: "初始化", loadBook: "加载", splitBook: "切分",
+  embeddingChunks: "向量化", themeAnalyzer: "主题",
+  summaryAnalyzer: "摘要", quoteExtractor: "金句",
+  philosophyAnalyzer: "哲学", emotionAnalyzer: "情感",
+  aggregateResults: "聚合", saveAnalysis: "保存",
+  END: "完成", ERROR: "错误",
 };
 
 const nodeDesc: Record<string, string> = {
-  init: "Initializing", loadBook: "Loading book text",
-  splitBook: "Splitting into chunks", embeddingChunks: "Generating embeddings",
-  themeAnalyzer: "Analyzing themes", summaryAnalyzer: "Writing summaries",
-  quoteExtractor: "Extracting key quotes", philosophyAnalyzer: "Identifying philosophy",
-  emotionAnalyzer: "Analyzing emotions", aggregateResults: "Aggregating results",
-  saveAnalysis: "Saving to database",
+  init: "正在初始化", loadBook: "正在加载文本",
+  splitBook: "正在切分段落", embeddingChunks: "正在生成向量",
+  themeAnalyzer: "正在分析主题", summaryAnalyzer: "正在生成摘要",
+  quoteExtractor: "正在提取金句", philosophyAnalyzer: "正在识别哲学框架",
+  emotionAnalyzer: "正在分析情感", aggregateResults: "正在聚合结果",
+  saveAnalysis: "正在保存到数据库",
 };
 
   return (
@@ -123,19 +137,31 @@ const nodeDesc: Record<string, string> = {
       <div className="flex items-start justify-between mb-8">
         <div>
           <Link href="/library" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2 transition-colors">
-            <ArrowLeft className="h-3 w-3" /> Library
+            <ArrowLeft className="h-3 w-3" /> 书库
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight">{book.title}</h1>
           {book.author && <p className="text-muted-foreground">by {book.author}</p>}
         </div>
         <div className="flex items-center gap-2">
           {latestWorkflow?.status === "running" || latestWorkflow?.status === "pending" ? (
-            <Badge className="bg-blue-400/10 text-blue-400"><Loader2 className="h-3 w-3 animate-spin mr-1" /> Analyzing</Badge>
+            <Badge className="bg-blue-400/10 text-blue-400"><Loader2 className="h-3 w-3 animate-spin mr-1" /> 分析中</Badge>
           ) : latestWorkflow?.status === "completed" ? (
-            <Badge className="bg-emerald-400/10 text-emerald-400"><Sparkles className="h-3 w-3 mr-1" /> Complete</Badge>
+            <Badge className="bg-emerald-400/10 text-emerald-400"><Sparkles className="h-3 w-3 mr-1" /> 已完成</Badge>
           ) : (
             <Badge variant="secondary">{book.status}</Badge>
           )}
+          <button
+            onClick={deleteBook}
+            disabled={deleting}
+            className="p-1.5 rounded-md hover:bg-red-400/10 transition-colors"
+            title="删除书籍"
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin text-red-400" />
+            ) : (
+              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-400 transition-colors" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -160,7 +186,7 @@ const nodeDesc: Record<string, string> = {
               <div className="flex items-center justify-between mb-3 text-sm">
                 <span className="flex items-center gap-2 font-medium">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
-                  AI Analysis Pipeline
+                  AI 分析流水线
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {Math.round(latestWorkflow.progress * 100)}%
@@ -209,7 +235,7 @@ const nodeDesc: Record<string, string> = {
 
               <div className="mt-3 flex justify-end">
                 <Link href={`/workflow/${latestWorkflow.id}`} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                  <ExternalLink className="h-3 w-3" /> Full workflow view
+                  <ExternalLink className="h-3 w-3" /> 查看完整流水线
                 </Link>
               </div>
             </CardContent>
@@ -220,20 +246,20 @@ const nodeDesc: Record<string, string> = {
       {latestWorkflow?.status === "failed" && (
         <div className="mb-6 rounded-lg bg-red-400/10 px-4 py-3 text-sm text-red-400 space-y-1">
           <div className="flex items-center gap-2 font-medium">
-            <AlertCircle className="h-4 w-4" /> Analysis failed
+            <AlertCircle className="h-4 w-4" /> 分析失败
           </div>
           {latestWorkflow.errors && latestWorkflow.errors.length > 0 ? (
             <div className="space-y-1 ml-6">
               {latestWorkflow.errors.map((e, i) => (
                 <div key={i}>
-                  <span className="text-red-400/70">Node:</span> {e.node}
+                  <span className="text-red-400/70">节点：</span> {e.node}
                   <br />
-                  <span className="text-red-400/70">Error:</span> {e.message}
+                  <span className="text-red-400/70">错误：</span> {e.message}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="ml-6 text-red-400/60">No error details available. The workflow may have crashed unexpectedly.</p>
+            <p className="ml-6 text-red-400/60">暂无错误详情，工作流可能意外崩溃。</p>
           )}
         </div>
       )}
@@ -242,21 +268,42 @@ const nodeDesc: Record<string, string> = {
       {analyses.length > 0 ? (
         <Tabs defaultValue="summary" className="w-full">
           <TabsList className="w-full justify-start mb-6 overflow-x-auto">
-            <TabsTrigger value="summary" className="gap-1"><BookOpen className="h-3.5 w-3.5" /> Summary</TabsTrigger>
-            <TabsTrigger value="themes" className="gap-1"><Hash className="h-3.5 w-3.5" /> Themes</TabsTrigger>
-            <TabsTrigger value="quotes" className="gap-1"><Quote className="h-3.5 w-3.5" /> Quotes</TabsTrigger>
-            <TabsTrigger value="philosophy" className="gap-1"><Brain className="h-3.5 w-3.5" /> Philosophy</TabsTrigger>
-            <TabsTrigger value="emotions" className="gap-1"><Heart className="h-3.5 w-3.5" /> Emotions</TabsTrigger>
+            <TabsTrigger value="summary" className="gap-1"><BookOpen className="h-3.5 w-3.5" /> 摘要</TabsTrigger>
+            <TabsTrigger value="themes" className="gap-1"><Hash className="h-3.5 w-3.5" /> 主题</TabsTrigger>
+            <TabsTrigger value="quotes" className="gap-1"><Quote className="h-3.5 w-3.5" /> 金句</TabsTrigger>
+            <TabsTrigger value="philosophy" className="gap-1"><Brain className="h-3.5 w-3.5" /> 哲学</TabsTrigger>
+            <TabsTrigger value="emotions" className="gap-1"><Heart className="h-3.5 w-3.5" /> 情感</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary">
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-4 w-4" /> Summary</CardTitle></CardHeader>
-              <CardContent><p className="text-muted-foreground leading-relaxed whitespace-pre-line">{summaryResult?.summary ?? "No summary available."}</p></CardContent>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-4 w-4" /> 摘要</CardTitle>
+                  <a
+                    href={`/api/books/${book.id}/poster?type=summary`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-3 py-1.5 rounded-md hover:bg-primary/10"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" /> 生成海报
+                  </a>
+                </div>
+              </CardHeader>
+              <CardContent><p className="text-muted-foreground leading-relaxed whitespace-pre-line">{summaryResult?.summary ?? "暂无摘要。"}</p></CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="themes">
+            <div className="flex justify-end mb-3">
+              <a
+                href={`/api/books/${book.id}/poster?type=themes`}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-3 py-1.5 rounded-md hover:bg-primary/10"
+              >
+                <ImageIcon className="h-3.5 w-3.5" /> 生成主题海报
+              </a>
+            </div>
             <div className="grid gap-3">
               {(themeResult?.themes ?? bookThemes.map((t) => ({ name: t.name, description: t.description ?? "", weight: t.weight, occurrences: 1 }))).map((theme, i) => (
                 <Card key={i}>
@@ -280,7 +327,7 @@ const nodeDesc: Record<string, string> = {
 
           <TabsContent value="quotes">
             <div className="grid gap-3">
-              {bookQuotes.map((q) => (
+              {bookQuotes.map((q, qi) => (
                 <Card key={q.id}>
                   <CardContent className="p-4">
                     <p className="text-lg italic leading-relaxed mb-2">&ldquo;{q.text}&rdquo;</p>
@@ -288,11 +335,20 @@ const nodeDesc: Record<string, string> = {
                     <div className="flex items-center gap-2">
                       <Badge className={categoryColors[q.category] ?? "bg-muted"}>{q.category}</Badge>
                       <span className="text-xs text-muted-foreground">Score: {Math.round(q.score * 100)}%</span>
+                      <span className="flex-1" />
+                      <a
+                        href={`/api/books/${book.id}/poster?type=quote&qi=${qi}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded hover:bg-primary/10"
+                        title="生成金句海报"
+                      >
+                        <ImageIcon className="h-3 w-3" />
+                      </a>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-              {bookQuotes.length === 0 && <p className="text-muted-foreground text-sm py-4">No quotes extracted.</p>}
+              {bookQuotes.length === 0 && <p className="text-muted-foreground text-sm py-4">暂无提取的金句。</p>}
             </div>
           </TabsContent>
 
@@ -309,7 +365,7 @@ const nodeDesc: Record<string, string> = {
                       </div>
                     ))}
                   </div>
-                ) : <p className="text-sm text-muted-foreground">No philosophical frameworks identified.</p>}
+                ) : <p className="text-sm text-muted-foreground">未识别到哲学框架。</p>}
                 {philosophyResult?.philosophy?.argumentSummary && (
                   <>
                     <Separator />
@@ -357,7 +413,7 @@ const nodeDesc: Record<string, string> = {
                       </div>
                     </div>
                   </>
-                ) : <p className="text-sm text-muted-foreground">No emotional analysis available.</p>}
+                ) : <p className="text-sm text-muted-foreground">暂无情感分析数据。</p>}
               </CardContent>
             </Card>
           </TabsContent>
@@ -367,13 +423,13 @@ const nodeDesc: Record<string, string> = {
         <Card className="border-dashed border-red-400/30">
           <CardContent className="flex flex-col items-center py-16 gap-4">
             <AlertCircle className="h-12 w-12 text-red-400/60" />
-            <p className="text-muted-foreground font-medium">Analysis failed</p>
+            <p className="text-muted-foreground font-medium">分析失败</p>
             <p className="text-sm text-muted-foreground/70 text-center max-w-sm">
-              Something went wrong during analysis. You can retry without re-uploading.
+              分析过程中出现错误，可以在不重新上传的情况下重试。
             </p>
             <Button onClick={startAnalysis} disabled={triggering} variant="outline" className="gap-2">
               {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-              Retry Analysis
+              重试分析
             </Button>
           </CardContent>
         </Card>
@@ -382,11 +438,11 @@ const nodeDesc: Record<string, string> = {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center py-16 gap-4">
             <Lightbulb className="h-12 w-12 text-muted-foreground/40" />
-            <p className="text-muted-foreground font-medium">Ready for analysis</p>
-            <p className="text-sm text-muted-foreground/70">Start the AI workflow to unlock deep cognitive insights</p>
+            <p className="text-muted-foreground font-medium">等待分析</p>
+            <p className="text-sm text-muted-foreground/70">启动 AI 工作流，解锁深度认知洞察</p>
             <Button onClick={startAnalysis} disabled={triggering} className="gap-2">
               {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Start Analysis
+              开始分析
             </Button>
           </CardContent>
         </Card>
@@ -394,7 +450,7 @@ const nodeDesc: Record<string, string> = {
         /* Transitional state (analyzing/pending with no data yet) */
         <div className="text-center py-16 text-muted-foreground">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Analyzing your book…</p>
+          <p>正在分析你的书籍…</p>
         </div>
       )}
     </div>

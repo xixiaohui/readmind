@@ -18,18 +18,18 @@ interface WorkflowVisualizationProps {
 }
 
 const NODES: { name: string; label: string; row: number; col: number }[] = [
-  { name: "loadBook", label: "Load Book", row: 0, col: 0 },
-  { name: "splitBook", label: "Split Book", row: 1, col: 0 },
-  { name: "embeddingChunks", label: "Embed Chunks", row: 2, col: 0 },
+  { name: "loadBook", label: "加载文本", row: 0, col: 0 },
+  { name: "splitBook", label: "切分段落", row: 1, col: 0 },
+  { name: "embeddingChunks", label: "向量嵌入", row: 2, col: 0 },
   // Parallel branches
-  { name: "themeAnalyzer", label: "Theme Agent", row: 3, col: -1 },
-  { name: "summaryAnalyzer", label: "Summary Agent", row: 3, col: 0 },
-  { name: "quoteExtractor", label: "Quote Agent", row: 3, col: 1 },
-  { name: "emotionAnalyzer", label: "Emotion Agent", row: 4, col: 0 },
-  { name: "philosophyAnalyzer", label: "Philosophy Agent", row: 5, col: 0 },
+  { name: "themeAnalyzer", label: "主题分析", row: 3, col: -1 },
+  { name: "summaryAnalyzer", label: "摘要生成", row: 3, col: 0 },
+  { name: "quoteExtractor", label: "金句提取", row: 3, col: 1 },
+  { name: "emotionAnalyzer", label: "情感分析", row: 4, col: 0 },
+  { name: "philosophyAnalyzer", label: "哲学分析", row: 5, col: 0 },
   // Convergence
-  { name: "aggregateResults", label: "Aggregate", row: 6, col: 0 },
-  { name: "saveAnalysis", label: "Save Results", row: 7, col: 0 },
+  { name: "aggregateResults", label: "结果聚合", row: 6, col: 0 },
+  { name: "saveAnalysis", label: "保存结果", row: 7, col: 0 },
 ];
 
 // Build node state from steps
@@ -64,9 +64,9 @@ export default function WorkflowVisualization({ currentNode, steps = [] }: Workf
     <div className="relative space-y-1.5">
       {/* Header */}
       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
-        <div className="text-xs text-muted-foreground font-medium text-center">Sequential</div>
-        <div className="text-xs text-muted-foreground font-medium text-center">Parallel Agents</div>
-        <div className="text-xs text-muted-foreground font-medium text-center">Sequential</div>
+        <div className="text-xs text-muted-foreground font-medium text-center">串行阶段</div>
+        <div className="text-xs text-muted-foreground font-medium text-center">并行 Agent</div>
+        <div className="text-xs text-muted-foreground font-medium text-center">串行阶段</div>
       </div>
 
       <div className="flex gap-2">
@@ -154,10 +154,10 @@ export default function WorkflowVisualization({ currentNode, steps = [] }: Workf
 
       {/* Legend */}
       <div className="flex items-center gap-4 mt-3 pt-2 border-t border-border">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle className="h-3 w-3 text-emerald-400" /> Done</span>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 text-blue-400" /> Running</span>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Circle className="h-3 w-3" /> Pending</span>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><AlertCircle className="h-3 w-3 text-red-400" /> Failed</span>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle className="h-3 w-3 text-emerald-400" /> 完成</span>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 text-blue-400" /> 运行中</span>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Circle className="h-3 w-3" /> 等待</span>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><AlertCircle className="h-3 w-3 text-red-400" /> 失败</span>
       </div>
     </div>
   );

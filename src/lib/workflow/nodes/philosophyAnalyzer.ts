@@ -16,19 +16,19 @@ import { runAgentOverChunks } from "@/lib/agents/base";
 const philosophyOutputSchema = z.object({
   frameworks: z.array(
     z.object({
-      name: z.string(),
-      description: z.string(),
-      confidence: z.number(),
-      relatedThemes: z.array(z.string()),
+      name: z.string().optional().default("Unnamed Framework"),
+      description: z.string().optional().default(""),
+      confidence: z.number().optional().default(0.5),
+      relatedThemes: z.array(z.string()).optional().default([]),
     })
-  ),
+  ).optional().default([]),
   argumentStructure: z.array(
     z.object({
-      claim: z.string(),
-      evidence: z.array(z.string()),
-      reasoning: z.string(),
+      claim: z.string().optional().default(""),
+      evidence: z.array(z.string()).optional().default([]),
+      reasoning: z.string().optional().default(""),
     })
-  ),
+  ).optional().default([]),
 });
 
 type PhilosophyOutput = z.infer<typeof philosophyOutputSchema>;

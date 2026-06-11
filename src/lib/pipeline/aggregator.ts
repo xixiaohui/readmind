@@ -163,6 +163,7 @@ async function synthesizeThemeGroup(
 ): Promise<MergedTheme> {
   const primaryName = group[0]!.name;
   const variants = group.map((t) => `"${t.name}": ${t.description}`).join("\n");
+  const langNote = detectLangNote(primaryName);
 
   const messages: LLMMessage[] = [
     {
@@ -180,7 +181,8 @@ Output format (JSON):
 Rules:
 - The name should be the best representation of this theme cluster
 - The description should capture what ALL variants share
-- mergedKeywords should include the most important keywords from all variants`,
+- mergedKeywords should include the most important keywords from all variants
+${langNote}`,
     },
     {
       role: "user",
@@ -262,6 +264,9 @@ async function synthesizeFromSummaries(
   summaries: string[],
   bookTitle: string
 ): Promise<string> {
+  const sampleText = summaries[0] ?? bookTitle;
+  const langNote = detectLangNote(sampleText);
+
   const messages: LLMMessage[] = [
     {
       role: "system",
@@ -274,8 +279,9 @@ Your summary should:
 - Flow naturally as a single narrative (not a list)
 - Be immediately understandable to someone who hasn't read the summaries
 
-Write in clear, engaging English. Do not mention "the summaries" or "the analysis" —
-write as if you're summarizing the book itself.`,
+Do not mention "the summaries" or "the analysis" —
+write as if you're summarizing the book itself.
+${langNote}`,
     },
     {
       role: "user",
@@ -474,14 +480,27 @@ export async function aggregateAll(
 ): Promise<AggregatedAnalysis> {
   const processingTimeMs = Date.now() - input.processingStartTime;
 
-  // Run theme + summary + philosophy aggregation in parallel
-  const [themes, summary, topQuotes, philosophy, emotions] = await Promise.all([
-    aggregateThemes(input.themeResults),
-    synthesizeSummary(input.summaryResults, input.title),
-    Promise.resolve(rankQuotes(input.quoteResults)),
-    aggregatePhilosophy(input.philosophyResults),
-    Promise.resolve(buildEmotionArc(input.emotionResults)),
-  ]);
+  // Run each aggregator independently — one failure doesn't block the others.
+  // Promise.allSettled ensures partial results are preserved.
+  const [themeRes, summaryRes, quoteRes, philoRes, emotionRes] =
+    await Promise.allSettled([
+      aggregateThemes(input.themeResults ?? []),
+      synthesizeSummary(input.summaryResults ?? [], input.title),
+      Promise.resolve(rankQuotes(input.quoteResults ?? [])),
+      aggregatePhilosophy(input.philosophyResults ?? []),
+      Promise.resolve(buildEmotionArc(input.emotionResults ?? [])),
+    ]);
+
+  const themes = themeRes.status === "fulfilled" ? themeRes.value : [] as AggregatedAnalysis["themes"];
+  const summary = summaryRes.status === "fulfilled" ? summaryRes.value : `Summary of "${input.title}" is unavailable.`;
+  const topQuotes = quoteRes.status === "fulfilled" ? quoteRes.value : [] as AggregatedAnalysis["topQuotes"];
+  const philosophy = philoRes.status === "fulfilled" ? philoRes.value : { primaryFrameworks: [], argumentSummary: "" } as AggregatedAnalysis["philosophy"];
+  const emotions = emotionRes.status === "fulfilled" ? emotionRes.value : { overallTone: "Unknown", emotionArc: [], valenceDistribution: {} } as AggregatedAnalysis["emotions"];
+
+  // Log any aggregation failures
+  if (themeRes.status === "rejected") console.warn("[aggregateAll] Themes aggregation failed:", themeRes.reason);
+  if (summaryRes.status === "rejected") console.warn("[aggregateAll] Summary aggregation failed:", summaryRes.reason);
+  if (philoRes.status === "rejected") console.warn("[aggregateAll] Philosophy aggregation failed:", philoRes.reason);
 
   return {
     bookId: input.bookId,
@@ -493,10 +512,10 @@ export async function aggregateAll(
     philosophy,
     emotions,
     metadata: {
-      chunkCount: input.chunkCount,
-      totalTokens: input.totalTokens,
+      chunkCount: input.chunkCount ?? 0,
+      totalTokens: input.totalTokens ?? 0,
       processingTimeMs,
-      model: input.model,
+      model: input.model ?? "unknown",
     },
   };
 }
@@ -508,6 +527,30 @@ export async function aggregateAll(
 function average(numbers: number[]): number {
   if (numbers.length === 0) return 0;
   return numbers.reduce((a, b) => a + b, 0) / numbers.length;
+}
+
+/**
+ * Detects the language of a short text sample and returns an instruction
+ * for the LLM to respond in that language.
+ */
+function detectLangNote(text: string): string {
+  let cjk = 0, ascii = 0;
+  for (const ch of text.slice(0, 500)) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 0x4E00 && code <= 0x9FFF) cjk++;
+    else if (code >= 0x3400 && code <= 0x4DBF) cjk++;
+    else if (code < 0x80 && code >= 32) ascii++;
+  }
+  const total = cjk + ascii || 1;
+  const cjkRatio = cjk / total;
+
+  if (cjkRatio > 0.1) {
+    return "\nIMPORTANT: The text is Chinese. You MUST respond in Chinese (Simplified).";
+  }
+  if (ascii / total > 0.7) {
+    return "\nIMPORTANT: The text is English. You MUST respond in English.";
+  }
+  return "\nIMPORTANT: Respond in the same language as the input text.";
 }
 
 function mode<T>(items: T[]): T | undefined {

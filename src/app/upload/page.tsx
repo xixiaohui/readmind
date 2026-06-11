@@ -27,15 +27,15 @@ interface BookItem {
 const statusBadge = (book: BookItem) => {
   const ws = book.workflow?.status;
   if (ws === "completed" || book.status === "completed") {
-    return <Badge className="bg-emerald-400/10 text-emerald-400 text-xs"><CheckCircle className="h-3 w-3 mr-1" />Analyzed</Badge>;
+    return <Badge className="bg-emerald-400/10 text-emerald-400 text-xs"><CheckCircle className="h-3 w-3 mr-1" />已分析</Badge>;
   }
   if (ws === "running" || ws === "pending") {
-    return <Badge className="bg-blue-400/10 text-blue-400 text-xs"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing</Badge>;
+    return <Badge className="bg-blue-400/10 text-blue-400 text-xs"><Loader2 className="h-3 w-3 mr-1 animate-spin" />分析中</Badge>;
   }
   if (ws === "failed" || book.status === "failed") {
-    return <Badge className="bg-red-400/10 text-red-400 text-xs"><AlertCircle className="h-3 w-3 mr-1" />Failed</Badge>;
+    return <Badge className="bg-red-400/10 text-red-400 text-xs"><AlertCircle className="h-3 w-3 mr-1" />失败</Badge>;
   }
-  return <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+  return <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 mr-1" />待处理</Badge>;
 };
 
 export default function UploadPage() {
@@ -78,10 +78,10 @@ export default function UploadPage() {
       if (data.success) {
         router.push(`/book/${data.data.bookId}`);
       } else {
-        setError(data.error?.message ?? "Upload failed");
+        setError(data.error?.message ?? "上传失败");
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError("网络错误，请重试。");
     } finally {
       setUploading(false);
     }
@@ -94,9 +94,9 @@ export default function UploadPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Upload Book</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">上传书籍</h1>
         <p className="text-muted-foreground mt-1">
-          Upload a book&apos;s full text to begin AI cognitive analysis
+          上传书籍全文，开启 AI 认知分析
         </p>
       </div>
 
@@ -104,48 +104,48 @@ export default function UploadPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4" />
-            Book Details
+            书籍信息
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Title *</label>
+              <label className="text-sm font-medium mb-1.5 block">书名 *</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Meditations"
+                placeholder="例如：沉思录"
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
                 required
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Author</label>
+              <label className="text-sm font-medium mb-1.5 block">作者</label>
               <input
                 type="text"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                placeholder="e.g. Marcus Aurelius"
+                placeholder="例如：马可·奥勒留"
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
               />
             </div>
             <div>
               <label className="text-sm font-medium mb-1.5 block">
-                Full Text * <span className="text-muted-foreground font-normal">(min 100 characters)</span>
+                正文 * <span className="text-muted-foreground font-normal">（至少100个字符）</span>
               </label>
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Paste the complete book text here…"
+                placeholder="在此粘贴完整书籍文本…"
                 className="min-h-[300px] resize-y font-mono text-sm"
                 required
               />
               {text && (
                 <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                  <Badge variant="secondary">{charCount.toLocaleString()} chars</Badge>
-                  <Badge variant="secondary">{wordCount.toLocaleString()} words</Badge>
-                  <Badge variant="secondary">~{estimatedChunks} chunks</Badge>
+                  <Badge variant="secondary">{charCount.toLocaleString()} 字符</Badge>
+                  <Badge variant="secondary">{wordCount.toLocaleString()} 词</Badge>
+                  <Badge variant="secondary">~{estimatedChunks} 块</Badge>
                 </div>
               )}
             </div>
@@ -158,12 +158,12 @@ export default function UploadPage() {
               {uploading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Uploading…
+                  上传中…
                 </>
               ) : (
                 <>
                   <UploadIcon className="h-4 w-4 mr-2" />
-                  Upload &amp; Analyze
+                  上传并分析
                 </>
               )}
             </Button>
@@ -176,7 +176,7 @@ export default function UploadPage() {
         <div className="mt-8">
           <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-3">
             <History className="h-4 w-4" />
-            Previously Imported
+            已导入的书籍
           </h2>
           <div className="space-y-2">
             {books.map((book) => (

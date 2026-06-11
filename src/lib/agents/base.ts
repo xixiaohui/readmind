@@ -75,7 +75,19 @@ export async function runAgentOverChunks<TItem>(
   const { name, systemPrompt, buildUserMessage, outputSchema, maxRetries = 2 } = config;
   const results: AgentResult<TItem>[] = [];
 
-  console.log(`[Agent:${name}] Processing ${state.chunks.length} chunks...`);
+  // Detect language from chunks — append instruction so LLM responds in the same language
+  const firstChunk = state.chunks[0]?.content ?? "";
+  const lang = detectLanguage(firstChunk);
+  const langInstruction = lang === "zh"
+    ? "\n\nCRITICAL: The text is in Chinese. You MUST respond in Chinese (Simplified). All field values, descriptions, summaries, theme names, and analysis must be in Chinese."
+    : lang === "ja"
+    ? "\n\nCRITICAL: The text is in Japanese. You MUST respond in Japanese."
+    : lang === "en"
+    ? "\n\nCRITICAL: The text is in English. You MUST respond in English."
+    : "\n\nCRITICAL: Respond in the SAME language as the input text.";
+  const localizedPrompt = systemPrompt + langInstruction;
+
+  console.log(`[Agent:${name}] Processing ${state.chunks.length} chunks (${lang})...`);
 
   for (let i = 0; i < state.chunks.length; i++) {
     const chunk = state.chunks[i];
@@ -87,7 +99,7 @@ export async function runAgentOverChunks<TItem>(
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const messages: LLMMessage[] = [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: localizedPrompt },
           {
             role: "user",
             content: buildUserMessage(chunk.content, i, state.chunks.length),
@@ -105,21 +117,27 @@ export async function runAgentOverChunks<TItem>(
         break; // success → move to next chunk
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[Agent:${name}] Chunk ${i + 1}/${state.chunks.length} attempt ${attempt + 1} failed: ${lastError}`
-        );
-        // Small delay before retry (exponential backoff)
+
+        // Truncate long error messages for log readability
+        const shortError = lastError.length > 200
+          ? lastError.slice(0, 200) + "..."
+          : lastError;
+
         if (attempt < maxRetries - 1) {
+          console.warn(
+            `[Agent:${name}] Chunk ${i + 1}/${state.chunks.length} attempt ${attempt + 1} failed (will retry): ${shortError}`
+          );
           await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        } else {
+          console.warn(
+            `[Agent:${name}] Chunk ${i + 1}/${state.chunks.length} ✗ (all ${maxRetries} attempts failed): ${shortError}`
+          );
         }
       }
     }
 
     if (!success) {
       results.push({ chunkIndex: i, success: false, error: lastError });
-      console.warn(
-        `[Agent:${name}] Chunk ${i + 1}/${state.chunks.length} ✗ (all ${maxRetries} attempts failed)`
-      );
     }
   }
 
@@ -129,4 +147,34 @@ export async function runAgentOverChunks<TItem>(
   );
 
   return results;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Language Detection
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Simple heuristic language detection based on character ranges.
+ * Sufficient for determining the output language of analysis.
+ */
+function detectLanguage(text: string): "zh" | "ja" | "en" | "other" {
+  let cjk = 0;
+  let hiragana = 0;
+  let ascii = 0;
+
+  for (const ch of text.slice(0, 2000)) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 0x3040 && code <= 0x309F) hiragana++;
+    else if (code >= 0x4E00 && code <= 0x9FFF) cjk++;
+    else if (code >= 0x3400 && code <= 0x4DBF) cjk++;
+    else if (code >= 0xF900 && code <= 0xFAFF) cjk++;
+    else if (code < 0x80 && code >= 32) ascii++;
+  }
+
+  const total = cjk + hiragana + ascii || 1;
+
+  if (hiragana / total > 0.02) return "ja";
+  if (cjk / total > 0.15) return "zh";
+  if (ascii / total > 0.7) return "en";
+  return "other";
 }

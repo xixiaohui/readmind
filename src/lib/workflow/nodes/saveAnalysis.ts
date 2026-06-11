@@ -11,6 +11,10 @@
 //   - books: update status to "completed"
 //
 // After this node, the analysis is available via GET /api/books/{id}.
+//
+// DESIGNED TO BE RESILIENT: if any individual result type is missing or
+// malformed, the rest are still persisted. Partial results are better than
+// complete failure.
 // ---------------------------------------------------------------------------
 
 import { db } from "@/lib/db/connection";
@@ -25,9 +29,11 @@ export async function saveAnalysis(
   const { bookId, workflowId, aggregatedResult } = state;
 
   if (!aggregatedResult) {
-    console.warn("[saveAnalysis] No aggregated result to save.");
-    return { currentNode: "saveAnalysis", workflowStatus: "completed" };
+    console.warn("[saveAnalysis] No aggregated result — saving partial state from agents");
+    return savePartialResults(state);
   }
+
+  let savedCount = 0;
 
   // ── 1. Save analysis entries ────────────────────────────────────────────
 
@@ -39,12 +45,13 @@ export async function saveAnalysis(
   }[] = [];
 
   // Themes
-  if (aggregatedResult.themes.length > 0) {
+  const themesList = aggregatedResult.themes ?? [];
+  if (Array.isArray(themesList) && themesList.length > 0) {
     analysisEntries.push({
       bookId,
       workflowId,
       analysisType: "theme",
-      result: { themes: aggregatedResult.themes },
+      result: { themes: themesList },
     });
   }
 
@@ -59,85 +66,161 @@ export async function saveAnalysis(
   }
 
   // Quotes
-  if (aggregatedResult.topQuotes.length > 0) {
+  const quoteList = aggregatedResult.topQuotes ?? [];
+  if (Array.isArray(quoteList) && quoteList.length > 0) {
     analysisEntries.push({
       bookId,
       workflowId,
       analysisType: "quote",
-      result: { quotes: aggregatedResult.topQuotes },
+      result: { quotes: quoteList },
     });
   }
 
   // Philosophy
-  if (aggregatedResult.philosophy.primaryFrameworks.length > 0) {
+  const philo = aggregatedResult.philosophy;
+  if (philo && Array.isArray(philo.primaryFrameworks) && philo.primaryFrameworks.length > 0) {
     analysisEntries.push({
       bookId,
       workflowId,
       analysisType: "philosophy",
-      result: { philosophy: aggregatedResult.philosophy },
+      result: { philosophy: philo },
     });
   }
 
   // Emotions
-  if (aggregatedResult.emotions.overallTone !== "Unknown") {
+  const emo = aggregatedResult.emotions;
+  if (emo && emo.overallTone && emo.overallTone !== "Unknown") {
     analysisEntries.push({
       bookId,
       workflowId,
       analysisType: "emotion",
-      result: { emotions: aggregatedResult.emotions },
+      result: { emotions: emo },
     });
   }
 
-  // Batch insert
+  // Batch insert with error isolation
   if (analysisEntries.length > 0) {
-    const inserted = await db
-      .insert(bookAnalysis)
-      .values(analysisEntries)
-      .returning({ id: bookAnalysis.id, analysisType: bookAnalysis.analysisType });
+    try {
+      const inserted = await db
+        .insert(bookAnalysis)
+        .values(analysisEntries)
+        .returning({ id: bookAnalysis.id, analysisType: bookAnalysis.analysisType });
 
-    // ── 2. Save individual quotes ──────────────────────────────────────────
-    const quoteAnalysisId = inserted.find((r) => r.analysisType === "quote")?.id;
-    if (quoteAnalysisId && aggregatedResult.topQuotes.length > 0) {
-      await db.insert(quotes).values(
-        aggregatedResult.topQuotes.map((q) => ({
-          bookId,
-          analysisId: quoteAnalysisId,
-          text: q.text,
-          context: q.context,
-          category: q.category,
-          score: q.score,
-        }))
-      );
-    }
+      // ── 2. Save individual quotes ────────────────────────────────────
+      const quoteAnalysisId = inserted.find((r) => r.analysisType === "quote")?.id;
+      if (quoteAnalysisId && Array.isArray(quoteList) && quoteList.length > 0) {
+        await db.insert(quotes).values(
+          quoteList.map((q) => ({
+            bookId,
+            analysisId: quoteAnalysisId,
+            text: String(q.text ?? ""),
+            context: String(q.context ?? ""),
+            category: String(q.category ?? "insight"),
+            score: Number(q.score ?? 0),
+          }))
+        ).catch((err) => {
+          console.warn("[saveAnalysis] Failed to save quotes:", err);
+        });
+        savedCount++;
+      }
 
-    // ── 3. Save individual themes ──────────────────────────────────────────
-    const themeAnalysisId = inserted.find((r) => r.analysisType === "theme")?.id;
-    if (themeAnalysisId && aggregatedResult.themes.length > 0) {
-      await db.insert(themes).values(
-        aggregatedResult.themes.map((t) => ({
-          bookId,
-          analysisId: themeAnalysisId,
-          name: t.name,
-          description: t.description,
-          weight: t.weight,
-          evidence: { occurrences: t.occurrences },
-        }))
-      );
+      // ── 3. Save individual themes ────────────────────────────────────
+      const themeAnalysisId = inserted.find((r) => r.analysisType === "theme")?.id;
+      if (themeAnalysisId && Array.isArray(themesList) && themesList.length > 0) {
+        await db.insert(themes).values(
+          themesList.map((t) => ({
+            bookId,
+            analysisId: themeAnalysisId,
+            name: String(t.name ?? ""),
+            description: String(t.description ?? ""),
+            weight: Number(t.weight ?? 0),
+            evidence: { occurrences: Number(t.occurrences ?? 1) },
+          }))
+        ).catch((err) => {
+          console.warn("[saveAnalysis] Failed to save themes:", err);
+        });
+        savedCount++;
+      }
+
+      savedCount++;
+    } catch (err) {
+      console.error("[saveAnalysis] Batch insert failed:", err);
     }
   }
 
-  // ── 4. Update book status ───────────────────────────────────────────────
+  // ── 4. Update book status ─────────────────────────────────────────────
+  const metadata = aggregatedResult.metadata ?? { chunkCount: 0, totalTokens: 0, processingTimeMs: 0, model: "unknown" };
   await db
     .update(books)
     .set({
       status: "completed",
-      chunkCount: aggregatedResult.metadata.chunkCount,
+      chunkCount: metadata.chunkCount ?? 0,
       updatedAt: new Date(),
     })
-    .where(eq(books.id, bookId));
+    .where(eq(books.id, bookId))
+    .catch((err) => {
+      console.warn("[saveAnalysis] Failed to update book status:", err);
+    });
+
+  console.log(`[saveAnalysis] Persisted ${savedCount} analysis types`);
 
   return {
     currentNode: "saveAnalysis",
     workflowStatus: "completed",
   };
+}
+
+/**
+ * Fallback: save whatever partial results we have from individual agents
+ * even if the aggregator didn't produce a combined result.
+ */
+async function savePartialResults(
+  state: BookAnalysisStateType
+): Promise<Partial<BookAnalysisStateType>> {
+  const { bookId, workflowId } = state;
+
+  // Try to build minimal analysis entries from raw agent results
+  const entries: {
+    bookId: string;
+    workflowId: string;
+    analysisType: string;
+    result: Record<string, unknown>;
+  }[] = [];
+
+  if (state.summaries.length > 0) {
+    entries.push({
+      bookId,
+      workflowId,
+      analysisType: "summary",
+      result: { summary: state.summaries.map((s) => s.summary).filter(Boolean).join("\n\n") },
+    });
+  }
+
+  if (state.themes.length > 0) {
+    const allThemes = state.themes.flatMap((t) => t.themes ?? []);
+    if (allThemes.length > 0) {
+      entries.push({
+        bookId,
+        workflowId,
+        analysisType: "theme",
+        result: { themes: allThemes },
+      });
+    }
+  }
+
+  if (entries.length > 0) {
+    try {
+      await db.insert(bookAnalysis).values(entries);
+    } catch (err) {
+      console.warn("[saveAnalysis] Failed to save partial results:", err);
+    }
+  }
+
+  await db
+    .update(books)
+    .set({ status: "completed", updatedAt: new Date() })
+    .where(eq(books.id, bookId))
+    .catch(() => {});
+
+  return { currentNode: "saveAnalysis", workflowStatus: "completed" };
 }

@@ -11,9 +11,9 @@ import type { SummaryResult } from "@/lib/types";
 import { runAgentOverChunks } from "@/lib/agents/base";
 
 const summaryOutputSchema = z.object({
-  summary: z.string(),
-  keyPoints: z.array(z.string()),
-  readingLevel: z.enum(["beginner", "intermediate", "advanced"]),
+  summary: z.string().optional().default("No summary available for this passage."),
+  keyPoints: z.array(z.string()).optional().default([]),
+  readingLevel: z.enum(["beginner", "intermediate", "advanced"]).optional().default("intermediate"),
 });
 
 type SummaryOutput = z.infer<typeof summaryOutputSchema>;
