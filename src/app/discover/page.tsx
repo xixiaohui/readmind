@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Search, Globe, BookOpen, Loader2, Sparkles,
-  Hash, Quote, Heart, ArrowLeft,
+  Hash, Quote, ArrowLeft,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -111,7 +111,7 @@ export default function DiscoverPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={sort} onValueChange={setSort}>
+            <Select value={sort} onValueChange={(v) => setSort(v ?? "createdAt")}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="排序方式" />
               </SelectTrigger>
@@ -121,7 +121,7 @@ export default function DiscoverPage() {
                 <SelectItem value="completedAt">最近完成</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={order} onValueChange={setOrder}>
+            <Select value={order} onValueChange={(v) => setOrder(v ?? "desc")}>
               <SelectTrigger className="w-[100px]">
                 <SelectValue placeholder="顺序" />
               </SelectTrigger>

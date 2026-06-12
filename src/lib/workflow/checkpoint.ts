@@ -71,7 +71,7 @@ function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): v
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-function invalidateCache(cache: Map<unknown>, key: string): void {
+function invalidateCache(cache: Map<string, unknown>, key: string): void {
   cache.delete(key);
 }
 
