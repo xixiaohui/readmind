@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, Radio, Clock, FileText,
@@ -73,17 +73,39 @@ export default function WorkflowPage({ params }: { params: Promise<{ id: string 
   const { id } = use(params);
   const [data, setData] = useState<WorkflowData | null>(null);
   const [loading, setLoading] = useState(true);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchData = (skipCache = false) => {
+    const url = skipCache
+      ? `/api/workflows/${id}?_t=${Date.now()}`
+      : `/api/workflows/${id}`;
+
+    fetch(url)
+      .then((r) => r.json())
+      .then((d) => {
+        setData(d.data);
+        // Clear interval if workflow is done
+        if (d.data?.workflow?.status === "completed" || d.data?.workflow?.status === "failed") {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+        }
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    const fetchData = () => {
-      fetch(`/api/workflows/${id}`)
-        .then((r) => r.json())
-        .then((d) => setData(d.data))
-        .finally(() => setLoading(false));
-    };
     fetchData();
-    const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
+
+    // Start polling
+    intervalRef.current = setInterval(() => fetchData(), 3000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, [id]);
 
   if (loading) {
@@ -104,6 +126,25 @@ export default function WorkflowPage({ params }: { params: Promise<{ id: string 
       <Link href={`/book/${workflow.bookId}`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors">
         <ArrowLeft className="h-3 w-3" /> 返回书籍
       </Link>
+
+      {/* ── Analysis Info ──────────────────────────────────────────────────── */}
+      <Card className="mb-6 border-blue-400/20 bg-blue-400/5">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-blue-400/10 rounded-lg">
+              <BookOpen className="h-5 w-5 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold mb-1">AI 主题分析正在进行中</h2>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                系统正在使用 AI 分析你的书籍内容，包括：识别核心主题、生成章节摘要、提取金句、
+                分析哲学框架和情感变化。分析完成后，结果将自动保存到书籍页面。
+                {isActive && <span className="text-blue-400"> 页面将每 2 秒自动刷新进度。</span>}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -328,10 +369,127 @@ export default function WorkflowPage({ params }: { params: Promise<{ id: string 
         <span>
           {workflow.startedAt && <>Started {new Date(workflow.startedAt).toLocaleString()}</>}
         </span>
-        <Link href={`/book/${workflow.bookId}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-          <BookOpen className="h-3 w-3" /> 查看分析结果
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setLoading(true);
+              fetch(`/api/workflows/${id}`)
+                .then((r) => r.json())
+                .then((d) => setData(d.data))
+                .finally(() => setLoading(false));
+            }}
+            className="hover:text-foreground transition-colors underline underline-offset-2"
+          >
+            🔄 刷新
+          </button>
+          <button
+            onClick={() => {
+              const json = JSON.stringify(data, null, 2);
+              const blob = new Blob([json], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `workflow-${workflow.id}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="hover:text-foreground transition-colors underline underline-offset-2"
+          >
+            📥 导出 JSON
+          </button>
+          <Link href={`/book/${workflow.bookId}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+            <BookOpen className="h-3 w-3" /> 查看分析结果
+          </Link>
+        </div>
       </div>
+
+      {/* ── Debug Info Card ─────────────────────────────────────────────────── */}
+      <Card className="mt-6 border-amber-400/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-amber-400">
+            🐛 调试信息
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 text-xs">
+            {/* Quick Status */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-2 bg-muted/30 rounded">
+                <span className="text-muted-foreground">当前节点：</span>
+                <span className="font-mono font-semibold">{workflow.currentNode}</span>
+              </div>
+              <div className="p-2 bg-muted/30 rounded">
+                <span className="text-muted-foreground">进度：</span>
+                <span className="font-mono font-semibold">{Math.round(workflow.progress * 100)}%</span>
+              </div>
+              <div className="p-2 bg-muted/30 rounded">
+                <span className="text-muted-foreground">分块：</span>
+                <span className="font-mono font-semibold">
+                  {details ? `${details.chunks.current}/${details.chunks.total}` : "N/A"}
+                </span>
+              </div>
+              <div className="p-2 bg-muted/30 rounded">
+                <span className="text-muted-foreground">状态：</span>
+                <span className="font-mono font-semibold">{workflow.status}</span>
+              </div>
+            </div>
+
+            {/* State Summary */}
+            {details && (
+              <div className="p-2 bg-muted/30 rounded">
+                <p className="text-muted-foreground mb-1">State 摘要：</p>
+                <pre className="text-xs overflow-auto max-h-32">
+{JSON.stringify({
+  chunks: `${details.chunks.current}/${details.chunks.total}`,
+  agentOutputs: details.agentOutputs,
+  textLength: details.textLength,
+  estimatedTokens: details.estimatedTokens,
+  errors: details.errors.length,
+}, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            {/* Raw State (collapsible) */}
+            <details className="p-2 bg-muted/30 rounded">
+              <summary className="cursor-pointer font-medium hover:text-foreground transition-colors">
+                📄 查看完整 State JSON
+              </summary>
+              <pre className="mt-2 overflow-auto max-h-64 p-2 bg-background rounded border text-xs">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            </details>
+
+            {/* Export Button */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const json = JSON.stringify(data, null, 2);
+                  const blob = new Blob([json], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `workflow-${workflow.id}-${Date.now()}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1 bg-amber-400/10 text-amber-400 rounded hover:bg-amber-400/20 transition-colors text-xs"
+              >
+                📥 下载完整 State
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+                  alert("已复制到剪贴板！");
+                }}
+                className="px-3 py-1 bg-amber-400/10 text-amber-400 rounded hover:bg-amber-400/20 transition-colors text-xs"
+              >
+                📋 复制 JSON
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

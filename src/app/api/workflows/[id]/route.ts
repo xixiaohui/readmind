@@ -48,8 +48,8 @@ export const GET = withErrorHandler(async (
     .where(eq(books.id, workflow.bookId))
     .limit(1);
 
-  // Get step history
-  const steps = await getStepHistory(workflowId);
+  // Get step history (with cache)
+  const steps = await getStepHistory(workflowId, { useCache: true });
 
   // Calculate per-step timing
   const formattedSteps = steps.map((step) => {
@@ -68,8 +68,8 @@ export const GET = withErrorHandler(async (
     };
   });
 
-  // Get state from checkpoint for rich details
-  const checkpoint = await loadCheckpoint(workflowId).catch(() => null);
+  // Get state from checkpoint for rich details (with cache)
+  const checkpoint = await loadCheckpoint(workflowId, { useCache: true }).catch(() => null);
 
   // Extract agent output counts from state
   const state = checkpoint?.state;

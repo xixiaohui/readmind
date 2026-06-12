@@ -18,23 +18,42 @@ export const GET = withErrorHandler(async (
 ) => {
   const { id: bookId } = await params;
 
-  // Get book
-  const [book] = await db
-    .select({
-      id: books.id,
-      title: books.title,
-      author: books.author,
-      status: books.status,
-      chunkCount: books.chunkCount,
-      createdAt: books.createdAt,
-      updatedAt: books.updatedAt,
-    })
-    .from(books)
-    .where(eq(books.id, bookId))
-    .limit(1);
+  // Check if client wants rawText (for reader page) - MUST be before any await
+  const url = new URL(_request.url);
+  const includeRawText = url.searchParams.get("includeRawText") === "true";
 
-  if (!book) {
-    return notFound("Book not found");
+  // Get book (without rawText first)
+  const baseFields = {
+    id: books.id,
+    title: books.title,
+    author: books.author,
+    status: books.status,
+    chunkCount: books.chunkCount,
+    isPublic: books.isPublic,
+    createdAt: books.createdAt,
+    updatedAt: books.updatedAt,
+  };
+
+  let book;
+  if (includeRawText) {
+    // Include rawText if requested
+    const [result] = await db
+      .select({
+        ...baseFields,
+        rawText: books.rawText,
+      })
+      .from(books)
+      .where(eq(books.id, bookId))
+      .limit(1);
+    book = result;
+  } else {
+    // Don't include rawText
+    const [result] = await db
+      .select(baseFields)
+      .from(books)
+      .where(eq(books.id, bookId))
+      .limit(1);
+    book = result;
   }
 
   // Get all completed analyses
@@ -110,7 +129,10 @@ export const GET = withErrorHandler(async (
     .orderBy(desc(themes.weight));
 
   return ok({
-    book,
+    book: {
+      ...book,
+      ...(includeRawText && { rawText: book.rawText }),
+    },
     analyses: analyses.map((a) => ({
       id: a.id,
       type: a.analysisType,
@@ -148,4 +170,50 @@ export const DELETE = withErrorHandler(async (
   await db.delete(books).where(eq(books.id, bookId));
 
   return ok({ deleted: bookId, title: book.title });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/books/[id]
+// ---------------------------------------------------------------------------
+// Update book fields (e.g., isPublic).
+// Only the book owner can update.
+// ---------------------------------------------------------------------------
+
+export const PATCH = withErrorHandler(async (
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const user = await authenticate(request);
+  if (!user) return error("UNAUTHORIZED", "Login required", 401);
+
+  const { id: bookId } = await params;
+  const body = await request.json();
+
+  // Verify book exists and belongs to user
+  const [book] = await db
+    .select({ id: books.id, userId: books.userId, title: books.title })
+    .from(books)
+    .where(eq(books.id, bookId))
+    .limit(1);
+
+  if (!book) return notFound("Book not found");
+  if (book.userId !== user.sub) return error("FORBIDDEN", "Not your book", 403);
+
+  // Update fields
+  const updates: Partial<{ isPublic: boolean }> = {};
+
+  if (body.isPublic !== undefined) {
+    updates.isPublic = Boolean(body.isPublic);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return error("BAD_REQUEST", "No fields to update", 400);
+  }
+
+  await db
+    .update(books)
+    .set(updates)
+    .where(eq(books.id, bookId));
+
+  return ok({ updated: bookId, title: book.title, changes: updates });
 });

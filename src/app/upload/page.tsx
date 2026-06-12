@@ -44,6 +44,7 @@ export default function UploadPage() {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [text, setText] = useState("");
+  const [isPublic, setIsPublic] = useState(true); // ← 新增：是否公开
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [books, setBooks] = useState<BookItem[]>([]);
@@ -71,7 +72,7 @@ export default function UploadPage() {
       const res = await fetch("/api/books/upload", {
         method: "POST",
         headers,
-        body: JSON.stringify({ title: title.trim(), author: author.trim() || undefined, text }),
+        body: JSON.stringify({ title: title.trim(), author: author.trim() || undefined, text, isPublic }),
       });
       const data = await res.json();
 
@@ -150,6 +151,29 @@ export default function UploadPage() {
               )}
             </div>
 
+            {/* 是否公开 */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+              <div>
+                <p className="text-sm font-medium">公开此书</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  公开后，其他用户可以在发现页面浏览此书的AI分析结果
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPublic(!isPublic)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  isPublic ? "bg-primary" : "bg-muted-foreground/20"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    isPublic ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
             {error && (
               <div className="text-sm text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</div>
             )}
@@ -171,7 +195,7 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
-      {/* ── Previously Imported ─────────────────────────────────────────── */}
+      {/* ── Previously Imported ────────────────────────────────────────── */}
       {!loadingBooks && books.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-3">

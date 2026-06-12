@@ -8,6 +8,7 @@ import {
   Sparkles, Hash, BarChart3, ArrowLeft, ExternalLink, AlertCircle,
   Play, RotateCcw, Trash2, Image as ImageIcon,
   Users, Activity, Building2, Landmark, PenTool, Church,
+  Globe, Lock, // ← 新增：用于公开/私密切换
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 
 interface BookData {
-  book: { id: string; title: string; author: string | null; status: string; chunkCount: number; createdAt: string };
+  book: { id: string; title: string; author: string | null; status: string; chunkCount: number; isPublic: boolean; createdAt: string };
   analyses: { id: string; type: string; result: unknown }[];
   latestWorkflow: {
     id: string; status: string; progress: number; currentNode: string;
@@ -34,6 +35,7 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [togglingPublic, setTogglingPublic] = useState(false); // ← 新增：切换公开状态中
 
   const deleteBook = async () => {
     if (!confirm("确认删除这本书及其所有分析数据？此操作不可撤销。")) return;
@@ -91,6 +93,34 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
     } finally {
       setTriggering(false);
       fetchBook();
+    }
+  };
+
+  const togglePublic = async () => {
+    if (!data) return;
+    setTogglingPublic(true);
+    try {
+      const token = localStorage.getItem("readmind_token");
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`/api/books/${id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ isPublic: !data.book.isPublic }),
+      });
+      if (res.ok) {
+        setData({
+          ...data,
+          book: { ...data.book, isPublic: !data.book.isPublic },
+        });
+      } else {
+        alert("切换公开状态失败");
+      }
+    } catch (err) {
+      console.error("Toggle public failed:", err);
+      alert("网络错误");
+    } finally {
+      setTogglingPublic(false);
     }
   };
 
@@ -174,6 +204,38 @@ const nodeDesc: Record<string, string> = {
               <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-400 transition-colors" />
             )}
           </button>
+
+          {/* 公开状态切换 */}
+          <button
+            onClick={togglePublic}
+            disabled={togglingPublic}
+            className={`p-1.5 rounded-md transition-colors ${
+              data?.book.isPublic
+                ? "hover:bg-emerald-400/10 text-emerald-400"
+                : "hover:bg-muted-foreground/10 text-muted-foreground"
+            }`}
+            title={data?.book.isPublic ? "设为私密" : "设为公开"}
+          >
+            {togglingPublic ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : data?.book.isPublic ? (
+              <Globe className="h-4 w-4" />
+            ) : (
+              <Lock className="h-4 w-4" />
+            )}
+          </button>
+
+          {/* 阅读原文 */}
+          {data?.book.status === "completed" && (
+            <Link href={`/book/${id}/reader`}>
+              <button
+                className="p-1.5 rounded-md hover:bg-primary/10 text-primary transition-colors"
+                title="阅读原文"
+              >
+                <BookOpen className="h-4 w-4" />
+              </button>
+            </Link>
+          )}
         </div>
       </div>
 

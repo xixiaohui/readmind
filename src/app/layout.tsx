@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { BookOpen, Upload, Library, Crown, User } from "lucide-react";
+import { BookOpen, Upload, Library, Crown, User, Globe } from "lucide-react";
 import { AuthProvider } from "@/components/AuthProvider";
 import { UserMenu } from "@/components/UserMenu";
 import "./globals.css";
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 const navItems = [
   { href: "/library", label: "书库", icon: Library },
+  { href: "/discover", label: "发现", icon: Globe },
   { href: "/upload", label: "上传", icon: Upload },
   { href: "/pricing", label: "会员", icon: Crown },
   { href: "/account", label: "账户", icon: User },

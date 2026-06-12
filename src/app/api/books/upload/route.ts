@@ -28,7 +28,7 @@ export const POST = withErrorHandler(async (request: Request) => {
     return badRequest("Invalid input", parsed.error.flatten().fieldErrors);
   }
 
-  const { title, author, text } = parsed.data;
+  const { title, author, text, isPublic = true } = parsed.data; // ← 添加 isPublic，默认 true
 
   // ── Quota check ──────────────────────────────────────────────────────
   if (!canAnalyze(user)) {
@@ -48,12 +48,14 @@ export const POST = withErrorHandler(async (request: Request) => {
       author: author ?? null,
       rawText: text,
       status: "analyzing",
+      isPublic: isPublic, // ← 添加这一行
     })
     .returning({
       id: books.id,
       title: books.title,
       author: books.author,
       status: books.status,
+      isPublic: books.isPublic, // ← 返回 isPublic
       createdAt: books.createdAt,
     });
 

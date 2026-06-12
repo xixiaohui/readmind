@@ -45,9 +45,39 @@ import {
 } from "./state";
 import type { StepStatus } from "@/lib/types";
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// Cache Layer — Simple in-memory cache for checkpoints and step history
+// ══════════════════════════════════════════════════════════════════════════
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const checkpointCache = new Map<string, CacheEntry<LoadCheckpointResult>>();
+const stepHistoryCache = new Map<string, CacheEntry<StepHistoryEntry[]>>();
+const CACHE_TTL = 30 * 1000; // 30 seconds TTL
+
+function getCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+    return entry.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): void {
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
+function invalidateCache(cache: Map<unknown>, key: string): void {
+  cache.delete(key);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // 1. Save Checkpoint
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 
 export interface SaveCheckpointParams {
   workflowId: string;
@@ -65,9 +95,12 @@ export interface SaveCheckpointParams {
  * This is the SINGLE POINT of persistence for workflow state.
  * Every Node calls this after it finishes processing.
  *
- * Two writes:
+ * Two writes (WRAPPED IN TRANSACTION):
  *   1. workflow_runs: update state_snapshot + progress + currentNode
  *   2. workflow_steps: insert audit log entry
+ *
+ * IMPORTANT: Both writes must succeed or both must fail (transaction).
+ * This prevents the inconsistency where state is saved but steps are missing.
  */
 export async function saveCheckpoint(params: SaveCheckpointParams): Promise<void> {
   const { workflowId, state, nodeName, status, inputData, outputData, error } =
@@ -90,36 +123,67 @@ export async function saveCheckpoint(params: SaveCheckpointParams): Promise<void
   const progress = calculateProgress(state);
   const serialized = serializeState(state);
 
-  // 1. Update workflow_runs (current state + progress)
-  await db
-    .update(workflowRuns)
-    .set({
-      stateSnapshot: serialized,
-      currentNode: nodeName,
-      currentChunkIndex: state.currentChunkIndex,
-      progress,
-      status: state.workflowStatus,
-      retryCount: state.retryCount,
-      errors: state.errors.length > 0 ? state.errors : null,
-      ...(status === "running" && { startedAt: new Date() }),
-      ...(status === "completed" || status === "failed"
-        ? { completedAt: new Date() }
-        : {}),
-    })
-    .where(eq(workflowRuns.id, workflowId));
-
-  // 2. Insert workflow_steps (audit log)
-  await db.insert(workflowSteps).values({
-    workflowId,
-    nodeName,
+  console.log(`[Checkpoint] Saving checkpoint for ${workflowId}/${nodeName}`, {
     status,
-    inputData,
-    outputData,
-    error,
-    startedAt: status === "running" ? new Date() : undefined,
-    completedAt:
-      status === "completed" || status === "failed" ? new Date() : undefined,
+    progress,
+    currentChunkIndex: state.currentChunkIndex,
+    chunksCount: state.chunks.length,
   });
+
+  try {
+    // Use a transaction to ensure both writes succeed or both fail
+    await db.transaction(async (tx) => {
+      // 1. Update workflow_runs (current state + progress)
+      const updateResult = await tx
+        .update(workflowRuns)
+        .set({
+          stateSnapshot: serialized,
+          currentNode: nodeName,
+          currentChunkIndex: state.currentChunkIndex,
+          progress,
+          status: state.workflowStatus,
+          retryCount: state.retryCount,
+          errors: state.errors.length > 0 ? state.errors : null,
+          ...(status === "running" && { startedAt: new Date() }),
+          ...(status === "completed" || status === "failed"
+            ? { completedAt: new Date() }
+            : {}),
+        })
+        .where(eq(workflowRuns.id, workflowId))
+        .returning({ id: workflowRuns.id });
+
+      if (updateResult.length === 0) {
+        throw new Error(`workflow_runs update affected 0 rows for ${workflowId}`);
+      }
+
+      console.log(`[Checkpoint] workflow_runs updated for ${workflowId}/${nodeName}`);
+
+      // 2. Insert workflow_steps (audit log)
+      await tx.insert(workflowSteps).values({
+        workflowId,
+        nodeName,
+        status,
+        inputData,
+        outputData,
+        error,
+        startedAt: status === "running" ? new Date() : undefined,
+        completedAt:
+          status === "completed" || status === "failed" ? new Date() : undefined,
+      });
+
+      console.log(`[Checkpoint] workflow_steps inserted for ${workflowId}/${nodeName}`);
+    });
+
+    console.log(`[Checkpoint] ✓ Checkpoint saved successfully for ${workflowId}/${nodeName}`);
+
+    // Invalidate caches
+    invalidateCache(checkpointCache, workflowId);
+    invalidateCache(stepHistoryCache, workflowId);
+
+  } catch (err) {
+    console.error(`[Checkpoint] ✗ Failed to save checkpoint for ${workflowId}/${nodeName}:`, err);
+    throw err; // Re-throw to let caller handle
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -138,10 +202,19 @@ export interface LoadCheckpointResult {
  * Used for recovery after crash, or for mobile app to query progress.
  *
  * Returns null if no checkpoint exists (first run).
+ *
+ * Supports optional caching to improve performance for frequent reads.
  */
 export async function loadCheckpoint(
-  workflowId: string
+  workflowId: string,
+  options?: { useCache?: boolean }
 ): Promise<LoadCheckpointResult | null> {
+  // Try cache first
+  if (options?.useCache !== false) {
+    const cached = getCache(checkpointCache, workflowId);
+    if (cached) return cached;
+  }
+
   const row = await db
     .select({
       stateSnapshot: workflowRuns.stateSnapshot,
@@ -159,12 +232,19 @@ export async function loadCheckpoint(
 
   const state = deserializeState(record.stateSnapshot);
 
-  return {
+  const result = {
     state,
     lastNode: record.currentNode ?? "",
     progress: record.progress ?? 0,
     recoveredAt: new Date(),
   };
+
+  // Cache the result
+  if (options?.useCache !== false) {
+    setCache(checkpointCache, workflowId, result);
+  }
+
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -182,10 +262,19 @@ export interface StepHistoryEntry {
 /**
  * Returns the audit log for a workflow — all step attempts in order.
  * Used by the Progress UI to show [✓] / [ ] / [✗] for each node.
+ *
+ * Supports optional caching to improve performance for frequent reads.
  */
 export async function getStepHistory(
-  workflowId: string
+  workflowId: string,
+  options?: { useCache?: boolean }
 ): Promise<StepHistoryEntry[]> {
+  // Try cache first
+  if (options?.useCache !== false) {
+    const cached = getCache(stepHistoryCache, workflowId);
+    if (cached) return cached;
+  }
+
   const rows = await db
     .select({
       nodeName: workflowSteps.nodeName,
@@ -198,13 +287,20 @@ export async function getStepHistory(
     .where(eq(workflowSteps.workflowId, workflowId))
     .orderBy(workflowSteps.createdAt);
 
-  return rows.map((r) => ({
+  const result = rows.map((r) => ({
     nodeName: r.nodeName,
     status: r.status as StepStatus,
     error: r.error,
     startedAt: r.startedAt,
     completedAt: r.completedAt,
   }));
+
+  // Cache the result
+  if (options?.useCache !== false) {
+    setCache(stepHistoryCache, workflowId, result);
+  }
+
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

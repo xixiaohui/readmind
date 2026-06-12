@@ -7,17 +7,18 @@
 
 import { z } from "zod";
 
-// ─── Book Upload ────────────────────────────────────────────────────────────
+// ── Book Upload ──────────────────────────────────────────────────────
 
 export const UploadBookSchema = z.object({
   title: z.string().min(1, "Title is required").max(500),
   author: z.string().max(200).optional(),
   text: z.string().min(100, "Text must be at least 100 characters"),
+  isPublic: z.boolean().default(true), // ← 新增：是否公开
 });
 
 export type UploadBookRequest = z.infer<typeof UploadBookSchema>;
 
-// ─── Start Analysis ────────────────────────────────────────────────────────
+// ── Start Analysis ──────────────────────────────────────────────────
 
 export const AnalyzeBookSchema = z.object({
   bookId: z.string().uuid("Invalid book ID"),
@@ -25,7 +26,7 @@ export const AnalyzeBookSchema = z.object({
 
 export type AnalyzeBookRequest = z.infer<typeof AnalyzeBookSchema>;
 
-// ─── Pagination ────────────────────────────────────────────────────────────
+// ── Pagination ─────────────────────────────────────────────────────
 
 export const PaginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
