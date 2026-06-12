@@ -10,7 +10,6 @@ import { workflowRuns, workflowSteps, bookAnalysis, quotes, themes, books } from
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { loadCheckpoint } from "@/lib/workflow/checkpoint";
-import { savePartialResults } from "@/lib/workflow/nodes/saveAnalysis";
 
 export async function POST(
   _request: NextRequest,

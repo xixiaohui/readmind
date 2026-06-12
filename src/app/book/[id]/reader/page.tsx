@@ -4,10 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, BookOpen, ChevronLeft, ChevronRight,
-  Type, AlignLeft, AlignJustify, Search,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 interface BookData {
   id: string;
@@ -27,8 +26,6 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   // Reading state
   const [currentPage, setCurrentPage] = useState(1);
   const [fontSize, setFontSize] = useState(16);
-  const [lineHeight, setLineHeight] = useState(1.8);
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Unwrap params
   useEffect(() => {
@@ -151,7 +148,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           className="prose prose-lg max-w-none dark:prose-invert"
           style={{
             fontSize: `${fontSize}px`,
-            lineHeight: lineHeight,
+            lineHeight: 1.8,
           }}
         >
           {formattedText}

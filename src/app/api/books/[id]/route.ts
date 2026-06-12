@@ -34,27 +34,29 @@ export const GET = withErrorHandler(async (
     updatedAt: books.updatedAt,
   };
 
-  let book;
-  if (includeRawText) {
-    // Include rawText if requested
-    const [result] = await db
-      .select({
-        ...baseFields,
-        rawText: books.rawText,
-      })
-      .from(books)
-      .where(eq(books.id, bookId))
-      .limit(1);
-    book = result;
-  } else {
-    // Don't include rawText
-    const [result] = await db
-      .select(baseFields)
-      .from(books)
-      .where(eq(books.id, bookId))
-      .limit(1);
-    book = result;
+  // Get book (without rawText first)
+  const [bookBase] = await db
+    .select(baseFields)
+    .from(books)
+    .where(eq(books.id, bookId))
+    .limit(1);
+
+  if (!bookBase) {
+    return notFound("Book not found");
   }
+
+  // Get rawText if requested
+  let rawText: string | undefined;
+  if (includeRawText) {
+    const [result] = await db
+      .select({ rawText: books.rawText })
+      .from(books)
+      .where(eq(books.id, bookId))
+      .limit(1);
+    rawText = result?.rawText;
+  }
+
+  const book = { ...bookBase, rawText };
 
   // Get all completed analyses
   const analyses = await db
